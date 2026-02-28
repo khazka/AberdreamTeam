@@ -16,6 +16,7 @@ const ROUTE_COLORS = { walk:'#16a34a', cycle:'#3b82f6', bus:'#8b5cf6', taxi:'#ef
 function decodePolyline(encoded) {
   const points = []
   let index = 0, lat = 0, lng = 0
+
   while (index < encoded.length) {
     let b, shift = 0, result = 0
     do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
@@ -57,9 +58,10 @@ function LogTripModal({ route, onClose, onConfirm }) {
 }
 
 export default function Journey({ user, showToast, onNeedSignup }) {
-  const [from, setFrom]         = useState('Aberdeen Station')
-  const [to, setTo]             = useState('University of Aberdeen')
+  const [from, setFrom]         = useState('')
+  const [to, setTo]             = useState('')
   const [routes, setRoutes]     = useState([])
+  const [currentLocation, setCurrentLocation] = useState(null)
   const [weather, setWeather]   = useState(null)
   const [selected, setSelected] = useState('walk')
   const [persona, setPersona]   = useState('planet')
@@ -81,6 +83,29 @@ export default function Journey({ user, showToast, onNeedSignup }) {
       .catch(() => setTimeout(() => setRdsWidth(78), 400))
     fetchRoutes()
   }, [])
+
+  useEffect(() => {
+  if (!navigator.geolocation) {
+    console.log("Geolocation not supported")
+    return
+  }
+
+  navigator.geolocation.getCurrentPosition(
+    (position) => {
+      setCurrentLocation({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+      })
+    },
+    (error) => {
+      console.error("Location error:", error)
+    },
+    {
+      enableHighAccuracy: true,
+      timeout: 10000,
+    }
+  )
+}, [])
 
   const onFromPlaceChanged = () => {
     if (fromAC) { const p = fromAC.getPlace(); if (p?.formatted_address) setFrom(p.formatted_address) }
@@ -271,78 +296,113 @@ export default function Journey({ user, showToast, onNeedSignup }) {
       </div>
 
       <div className="map-area">
-        {isLoaded && routes.some(r => r.polyline) ? (
-          <GoogleMap
-            mapContainerStyle={{ width:'100%', height:'100%' }}
-            center={ABERDEEN_CENTER}
-            zoom={14}
-            options={{ disableDefaultUI:true, zoomControl:true }}
-            onLoad={map => { setMapRef(map); fitMapToRoutes(map, routes) }}
-          >
-            {routes.map(route => route.polyline && (
-              <Polyline
-                key={route.appMode}
-                path={decodePolyline(route.polyline)}
-                options={{
-                  strokeColor: ROUTE_COLORS[route.appMode],
-                  strokeOpacity: route.appMode === selected ? 1 : 0.15,
-                  strokeWeight: route.appMode === selected ? 5 : 2,
-                  zIndex: route.appMode === selected ? 10 : 1,
-                }}
-              />
-            ))}
-            {routes.some(r => r.polyline) && (() => {
-              const pts = decodePolyline(routes.find(r => r.polyline).polyline)
-              return (<>
-                <Marker position={pts[0]} label="A" />
-                <Marker position={pts[pts.length - 1]} label="B" />
-              </>)
-            })()}
-          </GoogleMap>
-        ) : (
-          <svg className="fake-map" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
-            <rect width="800" height="600" fill="var(--map-bg)" />
-            <rect x="490" y="40" width="210" height="160" rx="12" fill="var(--map-park)" opacity="0.7" />
-            <rect x="90" y="340" width="140" height="100" rx="8" fill="var(--map-park)" opacity="0.5" />
-            <line x1="0" y1="300" x2="800" y2="300" stroke="var(--map-road)" strokeWidth="14" opacity="0.6" />
-            <line x1="400" y1="0" x2="400" y2="600" stroke="var(--map-road)" strokeWidth="14" opacity="0.6" />
-            <line x1="0" y1="140" x2="800" y2="460" stroke="var(--map-road)" strokeWidth="9" opacity="0.4" />
-            <line x1="140" y1="0" x2="640" y2="600" stroke="var(--map-road)" strokeWidth="9" opacity="0.4" />
-            <rect x="45" y="75" width="60" height="38" rx="3" fill="var(--map-building)" opacity="0.8" />
-            <rect x="590" y="345" width="75" height="55" rx="3" fill="var(--map-building)" opacity="0.8" />
-            <rect x="240" y="395" width="65" height="48" rx="3" fill="var(--map-building)" opacity="0.65" />
-            <path className="map-route walk"  style={{ display:selected==='walk' ?'block':'none' }} d="M 148 475 Q 180 395 205 345 Q 245 270 285 232 Q 345 182 405 155 Q 465 135 525 122 Q 580 112 625 105" />
-            <path className="map-route cycle" style={{ display:selected==='cycle'?'block':'none' }} d="M 148 475 Q 205 415 285 355 Q 365 295 445 235 Q 525 175 625 105" />
-            <path className="map-route bus"   style={{ display:selected==='bus'  ?'block':'none' }} d="M 148 475 L 148 300 L 400 300 L 400 148 L 625 105" />
-            <path className="map-route taxi"  style={{ display:selected==='taxi' ?'block':'none' }} d="M 148 475 Q 305 448 405 395 Q 525 335 625 105" />
-            <circle cx="148" cy="475" r="11" fill="var(--text)" />
-            <circle cx="148" cy="475" r="6" fill="var(--surface)" />
-            <circle cx="625" cy="105" r="13" fill="#16a34a" />
-            <text x="625" y="110" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold" fontFamily="sans-serif">G</text>
-            {selectedRoute && (
-              <g>
-                <rect x="310" y="178" width="130" height="22" rx="11" fill="var(--surface)" stroke="#16a34a" strokeWidth="1.5" opacity="0.95" />
-                <text x="375" y="194" textAnchor="middle" fill="#16a34a" fontSize="10" fontWeight="700" fontFamily="sans-serif">
-                  {selectedRoute.durationMin} min · {selectedRoute.distanceKm}km
-                </text>
-              </g>
-            )}
-          </svg>
-        )}
-        <div className="map-legend">
-          <div style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--muted)', marginBottom:'0.2rem', textTransform:'uppercase', letterSpacing:'0.05em' }}>Routes</div>
-          {[['#16a34a','Walk'],['#3b82f6','Cycle'],['#8b5cf6','Bus'],['#ef4444','Taxi']].map(([c,l]) => (
-            <div key={l} className="legend-row"><div className="legend-line" style={{ background:c, opacity:l==='Taxi'?0.45:1 }} /><span style={{ opacity:l==='Taxi'?0.6:1 }}>{l}</span></div>
-          ))}
-        </div>
-        <div className="map-pin" style={{ bottom:'88px', left:'70px' }}>📍 {from}</div>
-        <div className="map-pin" style={{ top:'55px', right:'90px' }}>🎯 {to}</div>
-        {surgeRoute && selected==='taxi' && (
-          <div style={{ position:'absolute', top:'1rem', left:'50%', transform:'translateX(-50%)', background:'rgba(239,68,68,0.9)', color:'#fff', padding:'0.5rem 1rem', borderRadius:'20px', fontSize:'0.8rem', fontWeight:700, whiteSpace:'nowrap' }}>
-            ⚡ City Taxi surge active · ×{surgeRoute.surgeMultiplier}
-          </div>
-        )}
+  {isLoaded ? (
+    <GoogleMap
+      mapContainerStyle={{ width: "100%", height: "100%" }}
+      center={currentLocation || ABERDEEN_CENTER}
+      zoom={14}
+      options={{ disableDefaultUI: true, zoomControl: true }}
+      onLoad={(map) => {
+        setMapRef(map);
+        if (routes?.length) fitMapToRoutes(map, routes);
+      }}
+    >
+      {/* Draw routes if available */}
+      {routes.map(
+        (route) =>
+          route.polyline && (
+            <Polyline
+              key={route.appMode}
+              path={decodePolyline(route.polyline)}
+              options={{
+                strokeColor: ROUTE_COLORS[route.appMode],
+                strokeOpacity: route.appMode === selected ? 1 : 0.15,
+                strokeWeight: route.appMode === selected ? 5 : 2,
+                zIndex: route.appMode === selected ? 10 : 1,
+              }}
+            />
+          )
+      )}
+
+      {/* Markers if we have at least one route */}
+      {routes.some((r) => r.polyline) && (() => {
+        const pts = decodePolyline(routes.find((r) => r.polyline).polyline);
+        return (
+          <>
+            <Marker position={pts[0]} label="A" />
+            <Marker position={pts[pts.length - 1]} label="B" />
+          </>
+        );
+      })()}
+    </GoogleMap>
+  ) : (
+    // no SVG fake map — just a lightweight placeholder while Google loads
+    <div
+      style={{
+        width: "100%",
+        height: "100%",
+        display: "grid",
+        placeItems: "center",
+        background: "var(--map-bg)",
+        color: "var(--muted)",
+        fontWeight: 600,
+      }}
+    >
+      Loading Google Maps…
+    </div>
+  )}
+
+  {/* Overlay if routes aren’t ready yet */}
+  {isLoaded && !routes.some((r) => r.polyline) && (
+    <div
+      style={{
+        position: "absolute",
+        inset: 0,
+        display: "grid",
+        placeItems: "center",
+        pointerEvents: "none",
+        background: "rgba(0,0,0,0.05)",
+        color: "var(--muted)",
+        fontWeight: 600,
+      }}
+    >
+      {loading ? "Fetching routes…" : "Enter locations and click “Find Green Routes”"}
+    </div>
+  )}
+
+  {/* Keep your legend/pins/surge banner */}
+  <div className="map-legend">
+    <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.2rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+      Routes
+    </div>
+    {[["#16a34a", "Walk"], ["#3b82f6", "Cycle"], ["#8b5cf6", "Bus"], ["#ef4444", "Taxi"]].map(([c, l]) => (
+      <div key={l} className="legend-row">
+        <div className="legend-line" style={{ background: c, opacity: l === "Taxi" ? 0.45 : 1 }} />
+        <span style={{ opacity: l === "Taxi" ? 0.6 : 1 }}>{l}</span>
       </div>
+    ))}
+  </div>
+
+  {surgeRoute && selected === "taxi" && (
+    <div
+      style={{
+        position: "absolute",
+        top: "1rem",
+        left: "50%",
+        transform: "translateX(-50%)",
+        background: "rgba(239,68,68,0.9)",
+        color: "#fff",
+        padding: "0.5rem 1rem",
+        borderRadius: "20px",
+        fontSize: "0.8rem",
+        fontWeight: 700,
+        whiteSpace: "nowrap",
+      }}
+    >
+      ⚡ City Taxi surge active · ×{surgeRoute.surgeMultiplier}
+    </div>
+  )}
+</div>
 
       {showLog && <LogTripModal route={selectedRoute} onClose={() => setShowLog(false)} onConfirm={handleLogConfirm} />}
     </div>
