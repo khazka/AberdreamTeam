@@ -94,12 +94,46 @@ export default function Impact({ user, onNeedSignup }) {
     )
   }
 
+  // SDG badges based on real trip data
+  const sdgs = []
+  const walkCycleTrips = trips.filter(t => t.mode === 'walk' || t.mode === 'cycle')
+  const nonTaxiTrips = trips.filter(t => t.mode !== 'taxi')
+  if (walkCycleTrips.length > 0)
+    sdgs.push({ num:3, icon:'🏃', name:'Good Health & Wellbeing', color:'#4c9f38', count:walkCycleTrips.length })
+  if (nonTaxiTrips.length > 0)
+    sdgs.push({ num:11, icon:'🏙️', name:'Sustainable Cities', color:'#f99d26', count:nonTaxiTrips.length })
+  if (parseFloat(co2Saved) > 0)
+    sdgs.push({ num:13, icon:'🌍', name:'Climate Action', color:'#3f7e44', count:trips.filter(t => parseFloat(t.co2Saved || 0) > 0).length })
+  if (user?.groupCode)
+    sdgs.push({ num:17, icon:'🤝', name:'Partnerships', color:'#19486a', count:1 })
+
+  // Motivation banner text
+  const motivationBanner = user?.motivation ? {
+    money:       { icon:'💰', text:`You've saved £${moneySaved} vs taxis this month` },
+    health:      { icon:'💪', text:`You've burned ${calories.toLocaleString()} kcal on green commutes` },
+    environment: { icon:'🌍', text:`Your choices removed ${plasticBottles} plastic bottles from the ocean` },
+    future:      { icon:'👨‍👩‍👧', text:`You're building a greener world — ${co2Saved}kg CO₂ saved` },
+  }[user.motivation] : null
+
   return (
     <div className="page-content">
       <div className="page-header">
         <div className="page-title">Your Impact 🌍</div>
         <div className="streak-badge">🔥 {streakCount}-Day Streak</div>
       </div>
+
+      {/* MOTIVATION BANNER */}
+      {motivationBanner && (
+        <div style={{
+          padding:'0.8rem 1rem', marginBottom:'1rem', borderRadius:'10px',
+          background:'rgba(22,163,74,0.08)', borderLeft:'4px solid var(--green, #16a34a)',
+          display:'flex', alignItems:'center', gap:'0.6rem',
+          fontSize:'0.88rem', fontWeight:600, color:'var(--text)',
+        }}>
+          <span style={{ fontSize:'1.2rem' }}>{motivationBanner.icon}</span>
+          {motivationBanner.text}
+        </div>
+      )}
 
       {/* AVATAR CARD */}
       <div className="avatar-card">
@@ -137,6 +171,33 @@ export default function Impact({ user, onNeedSignup }) {
           </div>
         ))}
       </div>
+
+      {/* SDG IMPACT */}
+      {sdgs.length > 0 && (
+        <div style={{ marginBottom:'1rem' }}>
+          <div style={{ fontSize:'0.72rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.5rem' }}>
+            UN Sustainable Development Goals
+          </div>
+          <div style={{ display:'grid', gridTemplateColumns:'repeat(auto-fill, minmax(140px, 1fr))', gap:'0.5rem' }}>
+            {sdgs.map(s => (
+              <div key={s.num} style={{
+                padding:'0.7rem', borderRadius:'10px', background:'var(--surface2)',
+                border:'1px solid var(--border)', display:'flex', flexDirection:'column', gap:'0.25rem',
+              }}>
+                <div style={{ display:'flex', alignItems:'center', gap:'0.4rem' }}>
+                  <div style={{
+                    width:24, height:24, borderRadius:'6px', background:s.color,
+                    display:'grid', placeItems:'center', fontSize:'0.65rem', fontWeight:800, color:'#fff',
+                  }}>{s.num}</div>
+                  <span style={{ fontSize:'1rem' }}>{s.icon}</span>
+                </div>
+                <div style={{ fontSize:'0.75rem', fontWeight:700, color:'var(--text)', lineHeight:1.3 }}>{s.name}</div>
+                <div style={{ fontSize:'0.68rem', color:'var(--muted)' }}>{s.count} trip{s.count !== 1 ? 's' : ''} contributed</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* IMPACT GRID — real data */}
       {loading ? (
