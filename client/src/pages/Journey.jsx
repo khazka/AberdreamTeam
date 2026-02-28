@@ -245,6 +245,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
                 <input className="search-input" value={from} onChange={e => setFrom(e.target.value)} placeholder="From" />
               )}
             </div>
+            
             <div className="search-dot" />
             <div className="search-row" data-icon="🎯">
               {isLoaded ? (
@@ -339,58 +340,45 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
         </div>
       </div>
 
-      <div className="map-area">
+<div className="map-area" style={{ position: "relative" }}>
   {isLoaded ? (
-<<<<<<< HEAD
     <GoogleMap
+      key={`${from}-${to}-${selected}`}
       mapContainerStyle={{ width: "100%", height: "100%" }}
-      center={currentLocation}
+      center={currentLocation || ABERDEEN_CENTER}
       zoom={14}
       options={{ disableDefaultUI: true, zoomControl: true }}
       onLoad={(map) => {
-        setMapRef(map);
-        if (routes?.length) fitMapToRoutes(map, routes);
+        setMapRef(map)
+        if (routes?.length) fitMapToRoutes(map, routes)
       }}
     >
-=======
-   <GoogleMap
-  key={`${from}-${to}-${selected}`}  
-  mapContainerStyle={{ width: "100%", height: "100%" }}
-  center={currentLocation || ABERDEEN_CENTER}
-  zoom={14}
-  options={{ disableDefaultUI: true, zoomControl: true }}
-  onLoad={(map) => {
-    setMapRef(map)
-    if (routes?.length) fitMapToRoutes(map, routes)
-  }}
->
->>>>>>> 0525d8c (Polyline fix)
-      {/* Draw routes if available */}
-{selectedRoute?.polyline && (
-  <Polyline
-    key={`${selectedRoute.appMode}-${selectedRoute.polyline}`} // forces refresh
-    path={decodePolyline(selectedRoute.polyline)}
-    options={{
-      strokeColor: ROUTE_COLORS[selectedRoute.appMode],
-      strokeOpacity: 1,
-      strokeWeight: 5,
-      zIndex: 10,
-    }}
-  />
-)}
+      {/* Draw route if available */}
+      {selectedRoute?.polyline && (
+        <Polyline
+          key={`${selectedRoute.appMode}-${selectedRoute.polyline}`}
+          path={decodePolyline(selectedRoute.polyline)}
+          options={{
+            strokeColor: ROUTE_COLORS[selectedRoute.appMode],
+            strokeOpacity: 1,
+            strokeWeight: 5,
+            zIndex: 10,
+          }}
+        />
+      )}
 
-{selectedRoute?.polyline && (() => {
-  const pts = decodePolyline(selectedRoute.polyline)
-  return (
-    <>
-      <Marker position={pts[0]} label="A" />
-      <Marker position={pts[pts.length - 1]} label="B" />
-    </>
-  )
-})()}
+      {/* Start/End markers */}
+      {selectedRoute?.polyline && (() => {
+        const pts = decodePolyline(selectedRoute.polyline)
+        return (
+          <>
+            <Marker position={pts[0]} label="A" />
+            <Marker position={pts[pts.length - 1]} label="B" />
+          </>
+        )
+      })()}
     </GoogleMap>
   ) : (
-    // no SVG fake map — just a lightweight placeholder while Google loads
     <div
       style={{
         width: "100%",
@@ -420,13 +408,22 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
         fontWeight: 600,
       }}
     >
-      {loading ? "Fetching routes…" : "Enter locations and click “Find Green Routes”"}
+      {loading ? "Fetching routes…" : 'Enter locations and click “Find Green Routes”'}
     </div>
   )}
 
-  {/* Keep your legend/pins/surge banner */}
+  {/* Legend */}
   <div className="map-legend">
-    <div style={{ fontSize: "0.65rem", fontWeight: 700, color: "var(--muted)", marginBottom: "0.2rem", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+    <div
+      style={{
+        fontSize: "0.65rem",
+        fontWeight: 700,
+        color: "var(--muted)",
+        marginBottom: "0.2rem",
+        textTransform: "uppercase",
+        letterSpacing: "0.05em",
+      }}
+    >
       Routes
     </div>
     {[["#16a34a", "Walk"], ["#3b82f6", "Cycle"], ["#8b5cf6", "Bus"], ["#ef4444", "Taxi"]].map(([c, l]) => (
@@ -437,6 +434,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
     ))}
   </div>
 
+  {/* Surge banner */}
   {surgeRoute && selected === "taxi" && (
     <div
       style={{
