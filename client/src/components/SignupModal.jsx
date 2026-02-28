@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { createUser } from '../utils/api'
 
 const AVATARS = ['🌿','🐢','🦋','🌍','⚡','🚴','🌊','🔥','🌱','🦅']
 const PERSONAS = [
@@ -14,9 +15,20 @@ export default function SignupModal({ onClose, onSignup }) {
   const [persona, setPersona] = useState('planet')
   const [error, setError]     = useState('')
 
-  const handleSignup = () => {
+  const handleSignup = async () => {
     if (!name.trim()) { setError('Enter your name to continue'); return }
-    onSignup({ name: name.trim(), email, avatar, persona, xp: 847 })
+    try {
+      const user = await createUser({ name: name.trim(), email, avatar, persona })
+      localStorage.setItem('greenUserId', user.id)
+      localStorage.setItem('greenUser', JSON.stringify(user))
+      onSignup(user)
+    } catch {
+      // Fallback if server is down — create local user
+      const fallback = { id: `local_${Date.now()}`, name: name.trim(), email, avatar, persona, xp: 0, trips: [] }
+      localStorage.setItem('greenUserId', fallback.id)
+      localStorage.setItem('greenUser', JSON.stringify(fallback))
+      onSignup(fallback)
+    }
   }
 
   return (

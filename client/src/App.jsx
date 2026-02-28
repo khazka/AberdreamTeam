@@ -11,7 +11,10 @@ export default function App() {
   const [screen, setScreen] = useState('journey')
   const [theme, setTheme] = useState('dark')
   const [showSignup, setShowSignup] = useState(false)
-  const [user, setUser] = useState(null) // null = not logged in
+  const [user, setUser] = useState(() => {
+    try { const saved = localStorage.getItem('greenUser'); return saved ? JSON.parse(saved) : null }
+    catch { return null }
+  })
   const [toast, setToast] = useState('')
 
   const toggleTheme = () => setTheme(t => t === 'dark' ? 'light' : 'dark')
@@ -23,6 +26,7 @@ export default function App() {
 
   const handleSignup = (userData) => {
     setUser(userData)
+    localStorage.setItem('greenUser', JSON.stringify(userData))
     setShowSignup(false)
     showToast(`Welcome, ${userData.name.split(' ')[0]}! ${userData.avatar} Avatar created`)
     setTimeout(() => setScreen('impact'), 900)
@@ -48,6 +52,7 @@ export default function App() {
         )}
         {screen === 'impact' && (
           <Impact
+            key={screen}
             user={user}
             onNeedSignup={() => setShowSignup(true)}
           />

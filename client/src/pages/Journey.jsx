@@ -1,88 +1,53 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import RouteCard from '../components/RouteCard'
 import { Bar } from 'react-chartjs-2'
-import {
-  Chart as ChartJS, CategoryScale, LinearScale,
-  BarElement, Tooltip, Legend
-} from 'chart.js'
-import { calcCO2, calcCalories, calcTime, calcCost, calcXP, calcCO2Saved, co2ToImpact } from '../utils/impact'
+import { Chart as ChartJS, CategoryScale, LinearScale, BarElement, Tooltip } from 'chart.js'
+import { co2ToImpact } from '../utils/impact'
+import { getRoutes, getWeather, logTrip } from '../utils/api'
+import { GoogleMap, useJsApiLoader, Polyline, Marker, Autocomplete } from '@react-google-maps/api'
 
-ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend)
+const GMAP_LIBS = ['places']
 
-// Static route data (replace with Google Maps API response)
-const DISTANCE_KM = 2.1
+ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip)
 
-const ROUTES = [
-  {
-    mode: 'walk', name: 'Walk', emoji: '🚶',
-    badge: '🏆 Greenest', badgeClass: 'badge-green',
-    stats: {
-      time: `${calcTime('walk', DISTANCE_KM)} min`,
-      co2: '0 kg', co2Class: 'c-green',
-      cost: '£0', costClass: 'c-green',
-      cal: calcCalories('walk', DISTANCE_KM), calClass: 'c-blue',
-    },
-  },
-  {
-    mode: 'cycle', name: 'Cycle', emoji: '🚴',
-    badge: '💪 Fittest', badgeClass: 'badge-blue',
-    stats: {
-      time: `${calcTime('cycle', DISTANCE_KM)} min`,
-      co2: '0 kg', co2Class: 'c-green',
-      cost: '£0', costClass: 'c-green',
-      cal: calcCalories('cycle', DISTANCE_KM), calClass: 'c-blue',
-    },
-  },
-  {
-    mode: 'bus', name: 'Bus', emoji: '🚌',
-    badge: '⚡ Fastest Green', badgeClass: 'badge-purple',
-    stats: {
-      time: `${calcTime('bus', DISTANCE_KM)} min`,
-      co2: `${calcCO2('bus', DISTANCE_KM)} kg`, co2Class: 'c-green',
-      cost: `£${calcCost('bus', DISTANCE_KM)}`, costClass: '',
-      cal: calcCalories('bus', DISTANCE_KM), calClass: 'c-muted',
-    },
-  },
-  {
-    mode: 'taxi', name: 'City Taxi', emoji: '🚕',
-    badge: '⚡ Surge ×1.4', badgeClass: 'badge-red',
-    stats: {
-      time: `${calcTime('taxi', DISTANCE_KM)} min`,
-      co2: `${calcCO2('taxi', DISTANCE_KM)} kg`, co2Class: 'c-red',
-      cost: `£${(parseFloat(calcCost('taxi', DISTANCE_KM)) * 1.4).toFixed(2)}`, costClass: 'c-red',
-      cal: calcCalories('taxi', DISTANCE_KM), calClass: 'c-muted',
-    },
-  },
-]
+const ABERDEEN_CENTER = { lat: 57.1497, lng: -2.0943 }
+const ROUTE_COLORS = { walk:'#16a34a', cycle:'#3b82f6', bus:'#8b5cf6', taxi:'#ef4444' }
 
-const PERSONAS = {
-  planet:  { data: [100, 98, 72, 8],  label: 'Green Score'   },
-  fitness: { data: [72, 100, 12, 2],  label: 'Fitness Score' },
-  budget:  { data: [100, 100, 85, 10], label: 'Value Score'  },
+function decodePolyline(encoded) {
+  const points = []
+  let index = 0, lat = 0, lng = 0
+  while (index < encoded.length) {
+    let b, shift = 0, result = 0
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lat += (result & 1) ? ~(result >> 1) : (result >> 1)
+    shift = 0; result = 0
+    do { b = encoded.charCodeAt(index++) - 63; result |= (b & 0x1f) << shift; shift += 5 } while (b >= 0x20)
+    lng += (result & 1) ? ~(result >> 1) : (result >> 1)
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 })
+  }
+  return points
 }
 
-const WINNERS = {
-  planet:  ['🚶 Walk', '🚴 Cycle', '🚶 Walk'],
-  fitness: ['🚴 Cycle', '🚴 Cycle', '🚴 Cycle'],
-  budget:  ['🚶 Walk', '🚴 Cycle', '🚶 Walk'],
+const MODE_CONFIG = {
+  walk:  { emoji:'🚶', name:'Walk',      badge:'🏆 Greenest',      badgeClass:'badge-green'  },
+  cycle: { emoji:'🚴', name:'Cycle',     badge:'💪 Fittest',       badgeClass:'badge-blue'   },
+  bus:   { emoji:'🚌', name:'Bus',       badge:'⚡ Fastest Green',  badgeClass:'badge-purple' },
+  taxi:  { emoji:'🚕', name:'City Taxi', badge:null,               badgeClass:'badge-red'    },
 }
 
-// LogTrip modal
-function LogTripModal({ mode, onClose, onConfirm }) {
-  const co2Saved = calcCO2Saved(mode, DISTANCE_KM)
-  const xp = calcXP(mode, co2Saved)
-  const impact = co2ToImpact(parseFloat(co2Saved))
-
+function LogTripModal({ route, onClose, onConfirm }) {
+  if (!route) return null
+  const impact = co2ToImpact(parseFloat(route.co2Saved || 0))
   return (
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ textAlign: 'center' }}>
-        <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>✅</div>
-        <div className="modal-title" style={{ justifyContent: 'center' }}>Trip Logged!</div>
+      <div className="modal" style={{ textAlign:'center' }}>
+        <div style={{ fontSize:'2.5rem', marginBottom:'0.5rem' }}>✅</div>
+        <div className="modal-title">Trip Logged!</div>
         <p className="modal-sub">You just made a green choice. Here's what it saved:</p>
         <div className="logtrip-stats">
-          <div className="lt-chip"><div className="lt-val">{co2Saved}kg</div><div className="lt-lbl">CO₂ saved</div></div>
+          <div className="lt-chip"><div className="lt-val">{route.co2Saved}kg</div><div className="lt-lbl">CO₂ saved</div></div>
           <div className="lt-chip"><div className="lt-val">🌊 {impact.plasticBottles}</div><div className="lt-lbl">Plastic bottles</div></div>
-          <div className="lt-chip"><div className="lt-val">+{xp} XP</div><div className="lt-lbl">Green score</div></div>
+          <div className="lt-chip"><div className="lt-val">+{route.xpEarned} XP</div><div className="lt-lbl">Green score</div></div>
         </div>
         <button className="modal-btn" onClick={onConfirm}>Track My Impact →</button>
         <button className="modal-skip" onClick={onClose}>Skip for now</button>
@@ -92,218 +57,294 @@ function LogTripModal({ mode, onClose, onConfirm }) {
 }
 
 export default function Journey({ user, showToast, onNeedSignup }) {
-  const [from, setFrom]             = useState('Aberdeen Station')
-  const [to, setTo]                 = useState('University of Aberdeen')
-  const [selectedMode, setMode]     = useState('walk')
-  const [persona, setPersona]       = useState('planet')
-  const [rdsWidth, setRdsWidth]     = useState(0)
-  const [showLogModal, setLogModal] = useState(false)
+  const [from, setFrom]         = useState('Aberdeen Station')
+  const [to, setTo]             = useState('University of Aberdeen')
+  const [routes, setRoutes]     = useState([])
+  const [weather, setWeather]   = useState(null)
+  const [selected, setSelected] = useState('walk')
+  const [persona, setPersona]   = useState('planet')
+  const [loading, setLoading]   = useState(false)
+  const [rdsWidth, setRdsWidth] = useState(0)
+  const [showLog, setShowLog]   = useState(false)
+
+  const { isLoaded } = useJsApiLoader({
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
+    libraries: GMAP_LIBS,
+  })
+  const [fromAC, setFromAC] = useState(null)
+  const [toAC, setToAC]     = useState(null)
+  const [mapRef, setMapRef]  = useState(null)
 
   useEffect(() => {
-    // Animate RDS bar on mount
-    setTimeout(() => setRdsWidth(78), 400)
+    getWeather('Aberdeen')
+      .then(w => { setWeather(w); setTimeout(() => setRdsWidth(w.rainyDayScore), 400) })
+      .catch(() => setTimeout(() => setRdsWidth(78), 400))
+    fetchRoutes()
   }, [])
 
-  const handleFind = () => {
-    // TODO: call Google Maps Directions API via your backend
-    showToast('🔧 Wire to Google Directions API in backend')
+  const onFromPlaceChanged = () => {
+    if (fromAC) { const p = fromAC.getPlace(); if (p?.formatted_address) setFrom(p.formatted_address) }
+  }
+  const onToPlaceChanged = () => {
+    if (toAC) { const p = toAC.getPlace(); if (p?.formatted_address) setTo(p.formatted_address) }
   }
 
-  const handleLog = () => setLogModal(true)
-
-  const handleLogConfirm = () => {
-    setLogModal(false)
-    if (!user) onNeedSignup()
-    else showToast('✅ Trip saved to your impact history')
+  const fitMapToRoutes = (map, rts) => {
+    if (!map || !rts?.length) return
+    const bounds = new window.google.maps.LatLngBounds()
+    rts.forEach(r => { if (r.polyline) decodePolyline(r.polyline).forEach(p => bounds.extend(p)) })
+    if (!bounds.isEmpty()) map.fitBounds(bounds, 50)
   }
 
-  const co2Saved = calcCO2Saved(selectedMode, DISTANCE_KM)
-  const moneySaved = (parseFloat(calcCost('taxi', DISTANCE_KM)) * 1.4 - parseFloat(calcCost(selectedMode, DISTANCE_KM))).toFixed(2)
-  const impact = co2ToImpact(parseFloat(co2Saved))
+  const fetchRoutes = async () => {
+    setLoading(true)
+    try {
+      const data = await getRoutes(from, to)
+      setRoutes(data)
+      const green = data.find(r => r.appMode !== 'taxi')
+      if (green) setSelected(green.appMode)
+      if (mapRef) fitMapToRoutes(mapRef, data)
+    } catch { showToast('Showing estimated routes') }
+    finally { setLoading(false) }
+  }
+
+  const selectedRoute = routes.find(r => r.appMode === selected)
+
+  const handleLogConfirm = async () => {
+    setShowLog(false)
+    if (!user) { onNeedSignup(); return }
+    try {
+      await logTrip({ userId:user.id, mode:selected, from, to,
+        distanceKm:selectedRoute.distanceKm, co2Saved:selectedRoute.co2Saved,
+        moneySaved:selectedRoute.moneySaved, calories:selectedRoute.calories })
+      showToast(`✅ Trip saved! +${selectedRoute.xpEarned} XP`)
+    } catch { showToast('Trip logged locally') }
+  }
+
+  const buildChartData = () => {
+    if (!routes.length) return { labels:[], datasets:[{ data:[] }] }
+    const order = ['walk','cycle','bus','taxi']
+    const ordered = order.map(m => routes.find(r => r.appMode === m)).filter(Boolean)
+    const values = ordered.map(r => {
+      if (persona === 'planet')  return Math.max(0, 100 - parseFloat(r.co2Kg) * 200)
+      if (persona === 'fitness') return Math.min(100, r.calories / 2)
+      if (persona === 'budget')  return Math.max(0, 100 - parseFloat(r.cost) * 8)
+      return 50
+    })
+    return {
+      labels: ordered.map(r => `${MODE_CONFIG[r.appMode]?.emoji} ${MODE_CONFIG[r.appMode]?.name}`),
+      datasets: [{ data: values,
+        backgroundColor:['rgba(22,163,74,0.8)','rgba(59,130,246,0.8)','rgba(139,92,246,0.8)','rgba(239,68,68,0.35)'],
+        borderRadius:6, borderSkipped:false }]
+    }
+  }
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
-  const chartData = {
-    labels: ['🚶 Walk', '🚴 Cycle', '🚌 Bus', '🚕 Taxi'],
-    datasets: [{
-      data: PERSONAS[persona].data,
-      backgroundColor: [
-        'rgba(22,163,74,0.8)', 'rgba(59,130,246,0.8)',
-        'rgba(139,92,246,0.8)', 'rgba(239,68,68,0.35)',
-      ],
-      borderRadius: 6, borderSkipped: false,
-    }],
-  }
   const chartOptions = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => ` Score: ${c.raw}/100` } } },
-    scales: {
-      y: { beginAtZero: true, max: 110, grid: { color: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.05)' }, ticks: { font: { size: 10 }, color: 'var(--muted)' } },
-      x: { grid: { display: false }, ticks: { font: { size: 11 } } },
-    },
+    responsive:true, maintainAspectRatio:false,
+    plugins:{ legend:{display:false} },
+    scales:{
+      y:{ beginAtZero:true, max:110, grid:{ color: isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' }, ticks:{ font:{size:10}, color:'#6b7280' } },
+      x:{ grid:{display:false}, ticks:{ font:{size:11} } }
+    }
   }
+
+  const getWinner = (cat) => {
+    if (!routes.length) return MODE_CONFIG.walk
+    const order = ['walk','cycle','bus','taxi']
+    const ordered = order.map(m => routes.find(r => r.appMode === m)).filter(Boolean)
+    if (cat === 'Greenest') return MODE_CONFIG[[...ordered].sort((a,b) => parseFloat(a.co2Kg)-parseFloat(b.co2Kg))[0]?.appMode] || MODE_CONFIG.walk
+    if (cat === 'Fittest')  return MODE_CONFIG[[...ordered].sort((a,b) => b.calories-a.calories)[0]?.appMode] || MODE_CONFIG.cycle
+    if (cat === 'Cheapest') return MODE_CONFIG[[...ordered].sort((a,b) => parseFloat(a.cost)-parseFloat(b.cost))[0]?.appMode] || MODE_CONFIG.walk
+    return MODE_CONFIG.walk
+  }
+
+  const surgeRoute = routes.find(r => r.isSurge)
 
   return (
-    <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
-      {/* ── SIDEBAR ── */}
+    <div style={{ display:'flex', flex:1, overflow:'hidden' }}>
       <div className="sidebar">
         <div className="sidebar-scroll">
-
-          {/* SEARCH */}
           <div className="search-wrap">
             <div className="search-row" data-icon="📍">
-              <input className="search-input" value={from} onChange={e => setFrom(e.target.value)} placeholder="From" />
+              {isLoaded ? (
+                <Autocomplete onLoad={setFromAC} onPlaceChanged={onFromPlaceChanged}
+                  options={{ componentRestrictions:{ country:'gb' } }}>
+                  <input className="search-input" value={from} onChange={e => setFrom(e.target.value)} placeholder="From" />
+                </Autocomplete>
+              ) : (
+                <input className="search-input" value={from} onChange={e => setFrom(e.target.value)} placeholder="From" />
+              )}
             </div>
             <div className="search-dot" />
             <div className="search-row" data-icon="🎯">
-              <input className="search-input" value={to} onChange={e => setTo(e.target.value)} placeholder="To" />
+              {isLoaded ? (
+                <Autocomplete onLoad={setToAC} onPlaceChanged={onToPlaceChanged}
+                  options={{ componentRestrictions:{ country:'gb' } }}>
+                  <input className="search-input" value={to} onChange={e => setTo(e.target.value)} placeholder="To" />
+                </Autocomplete>
+              ) : (
+                <input className="search-input" value={to} onChange={e => setTo(e.target.value)} placeholder="To" />
+              )}
             </div>
-            <button className="go-btn" onClick={handleFind}>Find Green Routes →</button>
+            <button className="go-btn" onClick={fetchRoutes} disabled={loading}>
+              {loading ? 'Finding routes...' : 'Find Green Routes →'}
+            </button>
           </div>
 
-          {/* MODE PILLS */}
           <div className="mode-pills">
-            {['🚶 Walk','🚴 Cycle','🚌 Bus','🚕 City Taxi'].map(m => (
-              <div key={m} className="mode-pill active">{m}</div>
+            {[['walk','🚶 Walk'],['cycle','🚴 Cycle'],['bus','🚌 Bus'],['taxi','🚕 City Taxi']].map(([id,lbl]) => (
+              <div key={id} className={`mode-pill${selected===id?' active':''}`}
+                onClick={() => setSelected(id)} style={{ cursor:'pointer' }}>{lbl}</div>
             ))}
           </div>
 
-          {/* WEATHER */}
-          <div className="weather-banner">
-            <span className="weather-icon">🌧️</span>
-            <div>
-              <strong>Rain expected 5–7pm.</strong>{' '}
-              City Taxi surge likely (+40%). Bus route fully covered — today's still a green win.
+          {weather && (
+            <div className="weather-banner">
+              <span className="weather-icon">{weather.isSnowing?'❄️':weather.isRaining?'🌧️':'☀️'}</span>
+              <div><strong>{weather.temp}°C · {weather.description}{weather.surgeWarning?' · ⚡ Surge warning':''}</strong>{' '}{weather.nudgeMessage}</div>
             </div>
-          </div>
+          )}
 
-          {/* RAINY DAY SCORE */}
           <div className="rds-card">
             <div className="rds-top">
               <span className="rds-label">Rainy Day Score™</span>
-              <span className="rds-badge">Aberdeen · Now</span>
+              <span className="rds-badge">Aberdeen · Live</span>
             </div>
             <div className="rds-row">
-              <div className="rds-score">78</div>
-              <div className="rds-bar-bg">
-                <div className="rds-bar-fill" style={{ width: `${rdsWidth}%` }} />
-              </div>
+              <div className="rds-score">{weather?.rainyDayScore || 78}</div>
+              <div className="rds-bar-bg"><div className="rds-bar-fill" style={{ width:`${rdsWidth}%` }} /></div>
             </div>
-            <div className="rds-sub">3 green options despite rain. Only taxi tanks your score today.</div>
+            <div className="rds-sub">{weather?.nudgeMessage || 'Green options available today.'}</div>
           </div>
 
-          {/* ROUTES */}
           <div className="section-label">Routes — ranked by green score</div>
-          {ROUTES.map(r => (
-            <RouteCard
-              key={r.mode}
-              {...r}
-              selected={selectedMode === r.mode}
-              onSelect={() => setMode(r.mode)}
-            />
-          ))}
+          {loading && <div style={{ textAlign:'center', padding:'1rem', color:'var(--muted)', fontSize:'0.85rem' }}>Fetching live routes...</div>}
+          {routes.map(route => {
+            const cfg = MODE_CONFIG[route.appMode] || {}
+            const badge = (route.appMode==='taxi' && route.isSurge) ? `⚡ Surge ×${route.surgeMultiplier}` : cfg.badge
+            return (
+              <RouteCard key={route.appMode} mode={route.appMode} name={cfg.name} emoji={cfg.emoji}
+                badge={badge} badgeClass={cfg.badgeClass}
+                selected={selected===route.appMode} onSelect={() => setSelected(route.appMode)}
+                stats={{
+                  time:`${route.durationMin} min`,
+                  co2: parseFloat(route.co2Kg)===0 ? '0 kg' : `${route.co2Kg} kg`,
+                  co2Class: route.appMode==='taxi' ? 'c-red' : 'c-green',
+                  cost:`£${route.cost}`,
+                  costClass: route.appMode==='taxi' ? 'c-red' : parseFloat(route.cost)===0 ? 'c-green' : '',
+                  cal:route.calories,
+                  calClass:['walk','cycle'].includes(route.appMode)?'c-blue':'c-muted',
+                }} />
+            )
+          })}
 
-          {/* SUMMARY */}
-          <div className="summary-strip">
-            <div className="sum-chip"><div className="sum-val">{co2Saved}kg</div><div className="sum-lbl">CO₂ saved vs taxi</div></div>
-            <div className="sum-chip"><div className="sum-val">£{moneySaved}</div><div className="sum-lbl">Money saved</div></div>
-            <div className="sum-chip"><div className="sum-val">🌊 {impact.plasticBottles}</div><div className="sum-lbl">Plastic bottles equiv.</div></div>
-          </div>
-
-          <button className="log-btn" onClick={handleLog}>
-            ✓ Log This Trip · +{calcXP(selectedMode, co2Saved)} XP
-          </button>
-
-          {/* SCOREBOARD */}
-          <div className="scoreboard-wrap">
-            <div className="section-label" style={{ marginBottom: '0.5rem' }}>📊 Impact Scoreboard</div>
-            <div className="persona-pills">
-              {['planet','fitness','budget'].map(p => (
-                <div key={p} className={`persona-pill ${persona === p ? 'active' : ''}`} onClick={() => setPersona(p)}>
-                  {{ planet:'🌍 Planet', fitness:'💪 Fitness', budget:'💰 Budget' }[p]}
-                </div>
-              ))}
-            </div>
-            <div className="chart-wrap">
-              <Bar data={chartData} options={chartOptions} />
-            </div>
-            <div className="winners">
-              {['Greenest','Fittest','Cheapest'].map((cat, i) => (
-                <div key={cat} className="winner-chip">
-                  <div className="w-cat">{cat}</div>
-                  <div className="w-icon">{WINNERS[persona][i].split(' ')[0]}</div>
-                  <div className="w-lbl">{WINNERS[persona][i].split(' ')[1]}</div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* ── MAP ── */}
-      <div className="map-area">
-        <svg className="fake-map" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
-          <rect width="800" height="600" fill="var(--map-bg)" />
-          <rect x="490" y="40" width="210" height="160" rx="12" fill="var(--map-park)" opacity="0.7" />
-          <rect x="90" y="340" width="140" height="100" rx="8" fill="var(--map-park)" opacity="0.5" />
-          <line x1="0" y1="300" x2="800" y2="300" stroke="var(--map-road)" strokeWidth="14" opacity="0.6" />
-          <line x1="400" y1="0" x2="400" y2="600" stroke="var(--map-road)" strokeWidth="14" opacity="0.6" />
-          <line x1="0" y1="140" x2="800" y2="460" stroke="var(--map-road)" strokeWidth="9" opacity="0.4" />
-          <line x1="140" y1="0" x2="640" y2="600" stroke="var(--map-road)" strokeWidth="9" opacity="0.4" />
-          <rect x="45" y="75" width="60" height="38" rx="3" fill="var(--map-building)" opacity="0.8" />
-          <rect x="120" y="85" width="38" height="28" rx="3" fill="var(--map-building)" opacity="0.7" />
-          <rect x="590" y="345" width="75" height="55" rx="3" fill="var(--map-building)" opacity="0.8" />
-          <rect x="690" y="315" width="48" height="38" rx="3" fill="var(--map-building)" opacity="0.7" />
-          <rect x="240" y="395" width="65" height="48" rx="3" fill="var(--map-building)" opacity="0.65" />
-
-          {/* WALK */}
-          <path className="map-route walk" style={{ display: selectedMode === 'walk' ? 'block' : 'none' }}
-            d="M 148 475 Q 180 395 205 345 Q 245 270 285 232 Q 345 182 405 155 Q 465 135 525 122 Q 580 112 625 105" />
-          {/* CYCLE */}
-          <path className="map-route cycle" style={{ display: selectedMode === 'cycle' ? 'block' : 'none' }}
-            d="M 148 475 Q 205 415 285 355 Q 365 295 445 235 Q 525 175 625 105" />
-          {/* BUS */}
-          <path className="map-route bus" style={{ display: selectedMode === 'bus' ? 'block' : 'none' }}
-            d="M 148 475 L 148 300 L 400 300 L 400 148 L 625 105" />
-          {/* TAXI */}
-          <path className="map-route taxi" style={{ display: selectedMode === 'taxi' ? 'block' : 'none' }}
-            d="M 148 475 Q 305 448 405 395 Q 525 335 625 105" />
-
-          <circle cx="148" cy="475" r="11" fill="var(--text)" />
-          <circle cx="148" cy="475" r="6" fill="var(--surface)" />
-          <circle cx="625" cy="105" r="13" fill="#16a34a" />
-          <text x="625" y="110" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold" fontFamily="sans-serif">G</text>
-
-          {selectedMode === 'walk' && (
-            <g>
-              <rect x="338" y="182" width="74" height="22" rx="11" fill="var(--surface)" stroke="#16a34a" strokeWidth="1.5" opacity="0.95" />
-              <text x="375" y="197" textAnchor="middle" fill="#16a34a" fontSize="10" fontWeight="700" fontFamily="sans-serif">
-                {calcTime('walk', DISTANCE_KM)} min 🚶
-              </text>
-            </g>
+          {selectedRoute && (
+            <>
+              <div className="summary-strip">
+                <div className="sum-chip"><div className="sum-val">{selectedRoute.co2Saved}kg</div><div className="sum-lbl">CO₂ saved vs taxi</div></div>
+                <div className="sum-chip"><div className="sum-val">£{selectedRoute.moneySaved}</div><div className="sum-lbl">Money saved</div></div>
+                <div className="sum-chip"><div className="sum-val">🌊 {selectedRoute.plasticBottles}</div><div className="sum-lbl">Plastic bottles equiv.</div></div>
+              </div>
+              <button className="log-btn" onClick={() => setShowLog(true)}>
+                ✓ Log This Trip · +{selectedRoute.xpEarned} XP
+              </button>
+            </>
           )}
-        </svg>
 
-        <div className="map-legend">
-          <div style={{ fontSize: '0.65rem', fontWeight: 700, color: 'var(--muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Routes</div>
-          {[['#16a34a','Walk'],['#3b82f6','Cycle'],['#8b5cf6','Bus'],['#ef4444','Taxi']].map(([color, label]) => (
-            <div key={label} className="legend-row">
-              <div className="legend-line" style={{ background: color, opacity: label === 'Taxi' ? 0.45 : 1 }} />
-              <span style={{ opacity: label === 'Taxi' ? 0.6 : 1 }}>{label}</span>
+          <div className="scoreboard-wrap">
+            <div className="section-label" style={{ marginBottom:'0.5rem' }}>📊 Impact Scoreboard</div>
+            <div className="persona-pills">
+              {[['planet','🌍 Planet'],['fitness','💪 Fitness'],['budget','💰 Budget']].map(([id,lbl]) => (
+                <div key={id} className={`persona-pill ${persona===id?'active':''}`} onClick={() => setPersona(id)}>{lbl}</div>
+              ))}
             </div>
-          ))}
+            <div className="chart-wrap"><Bar key={`${persona}-${routes.map(r=>r.distanceKm).join(',')}`} data={buildChartData()} options={chartOptions} /></div>
+            <div className="winners">
+              {['Greenest','Fittest','Cheapest'].map(cat => {
+                const w = getWinner(cat)
+                return <div key={cat} className="winner-chip"><div className="w-cat">{cat}</div><div className="w-icon">{w?.emoji}</div><div className="w-lbl">{w?.name}</div></div>
+              })}
+            </div>
+          </div>
         </div>
-
-        <div className="map-pin" style={{ bottom: '88px', left: '70px' }}>📍 Aberdeen Station</div>
-        <div className="map-pin" style={{ top: '55px', right: '90px' }}>🎓 University of Aberdeen</div>
       </div>
 
-      {showLogModal && (
-        <LogTripModal
-          mode={selectedMode}
-          onClose={() => setLogModal(false)}
-          onConfirm={handleLogConfirm}
-        />
-      )}
+      <div className="map-area">
+        {isLoaded && routes.some(r => r.polyline) ? (
+          <GoogleMap
+            mapContainerStyle={{ width:'100%', height:'100%' }}
+            center={ABERDEEN_CENTER}
+            zoom={14}
+            options={{ disableDefaultUI:true, zoomControl:true }}
+            onLoad={map => { setMapRef(map); fitMapToRoutes(map, routes) }}
+          >
+            {routes.map(route => route.polyline && (
+              <Polyline
+                key={route.appMode}
+                path={decodePolyline(route.polyline)}
+                options={{
+                  strokeColor: ROUTE_COLORS[route.appMode],
+                  strokeOpacity: route.appMode === selected ? 1 : 0.15,
+                  strokeWeight: route.appMode === selected ? 5 : 2,
+                  zIndex: route.appMode === selected ? 10 : 1,
+                }}
+              />
+            ))}
+            {routes.some(r => r.polyline) && (() => {
+              const pts = decodePolyline(routes.find(r => r.polyline).polyline)
+              return (<>
+                <Marker position={pts[0]} label="A" />
+                <Marker position={pts[pts.length - 1]} label="B" />
+              </>)
+            })()}
+          </GoogleMap>
+        ) : (
+          <svg className="fake-map" viewBox="0 0 800 600" preserveAspectRatio="xMidYMid slice">
+            <rect width="800" height="600" fill="var(--map-bg)" />
+            <rect x="490" y="40" width="210" height="160" rx="12" fill="var(--map-park)" opacity="0.7" />
+            <rect x="90" y="340" width="140" height="100" rx="8" fill="var(--map-park)" opacity="0.5" />
+            <line x1="0" y1="300" x2="800" y2="300" stroke="var(--map-road)" strokeWidth="14" opacity="0.6" />
+            <line x1="400" y1="0" x2="400" y2="600" stroke="var(--map-road)" strokeWidth="14" opacity="0.6" />
+            <line x1="0" y1="140" x2="800" y2="460" stroke="var(--map-road)" strokeWidth="9" opacity="0.4" />
+            <line x1="140" y1="0" x2="640" y2="600" stroke="var(--map-road)" strokeWidth="9" opacity="0.4" />
+            <rect x="45" y="75" width="60" height="38" rx="3" fill="var(--map-building)" opacity="0.8" />
+            <rect x="590" y="345" width="75" height="55" rx="3" fill="var(--map-building)" opacity="0.8" />
+            <rect x="240" y="395" width="65" height="48" rx="3" fill="var(--map-building)" opacity="0.65" />
+            <path className="map-route walk"  style={{ display:selected==='walk' ?'block':'none' }} d="M 148 475 Q 180 395 205 345 Q 245 270 285 232 Q 345 182 405 155 Q 465 135 525 122 Q 580 112 625 105" />
+            <path className="map-route cycle" style={{ display:selected==='cycle'?'block':'none' }} d="M 148 475 Q 205 415 285 355 Q 365 295 445 235 Q 525 175 625 105" />
+            <path className="map-route bus"   style={{ display:selected==='bus'  ?'block':'none' }} d="M 148 475 L 148 300 L 400 300 L 400 148 L 625 105" />
+            <path className="map-route taxi"  style={{ display:selected==='taxi' ?'block':'none' }} d="M 148 475 Q 305 448 405 395 Q 525 335 625 105" />
+            <circle cx="148" cy="475" r="11" fill="var(--text)" />
+            <circle cx="148" cy="475" r="6" fill="var(--surface)" />
+            <circle cx="625" cy="105" r="13" fill="#16a34a" />
+            <text x="625" y="110" textAnchor="middle" fill="#fff" fontSize="10" fontWeight="bold" fontFamily="sans-serif">G</text>
+            {selectedRoute && (
+              <g>
+                <rect x="310" y="178" width="130" height="22" rx="11" fill="var(--surface)" stroke="#16a34a" strokeWidth="1.5" opacity="0.95" />
+                <text x="375" y="194" textAnchor="middle" fill="#16a34a" fontSize="10" fontWeight="700" fontFamily="sans-serif">
+                  {selectedRoute.durationMin} min · {selectedRoute.distanceKm}km
+                </text>
+              </g>
+            )}
+          </svg>
+        )}
+        <div className="map-legend">
+          <div style={{ fontSize:'0.65rem', fontWeight:700, color:'var(--muted)', marginBottom:'0.2rem', textTransform:'uppercase', letterSpacing:'0.05em' }}>Routes</div>
+          {[['#16a34a','Walk'],['#3b82f6','Cycle'],['#8b5cf6','Bus'],['#ef4444','Taxi']].map(([c,l]) => (
+            <div key={l} className="legend-row"><div className="legend-line" style={{ background:c, opacity:l==='Taxi'?0.45:1 }} /><span style={{ opacity:l==='Taxi'?0.6:1 }}>{l}</span></div>
+          ))}
+        </div>
+        <div className="map-pin" style={{ bottom:'88px', left:'70px' }}>📍 {from}</div>
+        <div className="map-pin" style={{ top:'55px', right:'90px' }}>🎯 {to}</div>
+        {surgeRoute && selected==='taxi' && (
+          <div style={{ position:'absolute', top:'1rem', left:'50%', transform:'translateX(-50%)', background:'rgba(239,68,68,0.9)', color:'#fff', padding:'0.5rem 1rem', borderRadius:'20px', fontSize:'0.8rem', fontWeight:700, whiteSpace:'nowrap' }}>
+            ⚡ City Taxi surge active · ×{surgeRoute.surgeMultiplier}
+          </div>
+        )}
+      </div>
+
+      {showLog && <LogTripModal route={selectedRoute} onClose={() => setShowLog(false)} onConfirm={handleLogConfirm} />}
     </div>
   )
 }
