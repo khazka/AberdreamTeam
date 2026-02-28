@@ -343,7 +343,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
   {isLoaded ? (
     <GoogleMap
       mapContainerStyle={{ width: "100%", height: "100%" }}
-      center={currentLocation || ABERDEEN_CENTER}
+      center={currentLocation}
       zoom={14}
       options={{ disableDefaultUI: true, zoomControl: true }}
       onLoad={(map) => {
