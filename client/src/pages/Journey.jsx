@@ -29,6 +29,15 @@ function decodePolyline(encoded) {
   return points
 }
 
+function formatDuration(mins) {
+  const total = Math.round(Number(mins) || 0)
+  if (total < 60) return `${total} min`
+
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  return m === 0 ? `${h} hr` : `${h} hr ${m} min`
+}
+
 const MODE_CONFIG = {
   walk:  { emoji:'🚶', name:'Walk',      badgeClass:'badge-green'  },
   cycle: { emoji:'🚴', name:'Cycle',     badgeClass:'badge-blue'   },
@@ -288,7 +297,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
                 badge={badge} badgeClass={cfg.badgeClass}
                 selected={selected===route.appMode} onSelect={() => setSelected(route.appMode)}
                 stats={{
-                  time:`${route.durationMin} min`,
+                  time: formatDuration(route.durationMin),
                   co2: parseFloat(route.co2Kg)===0 ? '0 kg' : `${route.co2Kg} kg`,
                   co2Class: route.appMode==='taxi' ? 'c-red' : 'c-green',
                   cost:`£${route.cost}`,
