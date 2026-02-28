@@ -341,6 +341,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
 
       <div className="map-area">
   {isLoaded ? (
+<<<<<<< HEAD
     <GoogleMap
       mapContainerStyle={{ width: "100%", height: "100%" }}
       center={currentLocation}
@@ -351,33 +352,42 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
         if (routes?.length) fitMapToRoutes(map, routes);
       }}
     >
+=======
+   <GoogleMap
+  key={`${from}-${to}-${selected}`}  
+  mapContainerStyle={{ width: "100%", height: "100%" }}
+  center={currentLocation || ABERDEEN_CENTER}
+  zoom={14}
+  options={{ disableDefaultUI: true, zoomControl: true }}
+  onLoad={(map) => {
+    setMapRef(map)
+    if (routes?.length) fitMapToRoutes(map, routes)
+  }}
+>
+>>>>>>> 0525d8c (Polyline fix)
       {/* Draw routes if available */}
-      {routes.map(
-        (route) =>
-          route.polyline && (
-            <Polyline
-              key={route.appMode}
-              path={decodePolyline(route.polyline)}
-              options={{
-                strokeColor: ROUTE_COLORS[route.appMode],
-                strokeOpacity: route.appMode === selected ? 1 : 0.15,
-                strokeWeight: route.appMode === selected ? 5 : 2,
-                zIndex: route.appMode === selected ? 10 : 1,
-              }}
-            />
-          )
-      )}
+{selectedRoute?.polyline && (
+  <Polyline
+    key={`${selectedRoute.appMode}-${selectedRoute.polyline}`} // forces refresh
+    path={decodePolyline(selectedRoute.polyline)}
+    options={{
+      strokeColor: ROUTE_COLORS[selectedRoute.appMode],
+      strokeOpacity: 1,
+      strokeWeight: 5,
+      zIndex: 10,
+    }}
+  />
+)}
 
-      {/* Markers if we have at least one route */}
-      {routes.some((r) => r.polyline) && (() => {
-        const pts = decodePolyline(routes.find((r) => r.polyline).polyline);
-        return (
-          <>
-            <Marker position={pts[0]} label="A" />
-            <Marker position={pts[pts.length - 1]} label="B" />
-          </>
-        );
-      })()}
+{selectedRoute?.polyline && (() => {
+  const pts = decodePolyline(selectedRoute.polyline)
+  return (
+    <>
+      <Marker position={pts[0]} label="A" />
+      <Marker position={pts[pts.length - 1]} label="B" />
+    </>
+  )
+})()}
     </GoogleMap>
   ) : (
     // no SVG fake map — just a lightweight placeholder while Google loads
