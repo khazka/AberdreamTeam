@@ -1,26 +1,73 @@
 import { useState, useEffect } from 'react'
-
-const LEADERBOARD = [
-  { rank: '🥇', rankColor: '#f59e0b', av: '🧑', name: 'Jamie R.',  trips: 24, pts: 1240 },
-  { rank: '🥈', rankColor: '#9ca3af', av: '👩', name: 'Priya M.',  trips: 19, pts: 980  },
-  { rank: '🥉', rankColor: '#cd7c2f', av: '⭐', name: 'You',       trips: 16, pts: 847, you: true },
-  { rank: '4',  rankColor: 'var(--muted)', av: '🧔', name: 'Alex T.',  trips: 14, pts: 720  },
-  { rank: '5',  rankColor: 'var(--muted)', av: '👨', name: 'Chris W.', trips: 11, pts: 560  },
-  { rank: '6',  rankColor: 'var(--muted)', av: '👩', name: 'Sofia L.', trips: 9,  pts: 430  },
-]
+import { getGroup, joinGroup, createGroup } from '../utils/api'
 
 export default function Challenge({ user, showToast }) {
-  const [code, setCode]         = useState('')
+  const [code, setCode]           = useState('')
   const [goalWidth, setGoalWidth] = useState(0)
+  const [group, setGroup]         = useState(null)
+  const [myCode, setMyCode]       = useState('GR7X')
+  const [joining, setJoining]     = useState(false)
+  const [creating, setCreating]   = useState(false)
 
+  // Load default demo group on mount
   useEffect(() => {
-    setTimeout(() => setGoalWidth(68), 400)
+    getGroup('GR7X')
+      .then(g => { setGroup(g); setTimeout(() => setGoalWidth(Math.round((g.progress / g.goal) * 100)), 400) })
+      .catch(() => setTimeout(() => setGoalWidth(68), 400))
   }, [])
 
-  const handleJoin = () => {
-    if (code.length === 4) showToast(`🎉 Joined group ${code.toUpperCase()}!`)
-    else showToast('Enter a valid 4-letter code')
+  // If user is logged in, create them a real group code
+  useEffect(() => {
+    if (!user?.id || myCode !== 'GR7X') return
+    createGroup(user.id)
+      .then(res => setMyCode(res.code))
+      .catch(() => {})
+  }, [user])
+
+  const handleJoin = async () => {
+    const trimmed = code.trim().toUpperCase()
+    if (trimmed.length !== 4) { showToast('Enter a valid 4-letter code'); return }
+    setJoining(true)
+    try {
+      const res = await joinGroup(trimmed, user?.id)
+      setGroup(res.group)
+      const pct = Math.round((res.group.progress / res.group.goal) * 100)
+      setGoalWidth(0)
+      setTimeout(() => setGoalWidth(pct), 100)
+      showToast(`🎉 Joined group ${trimmed}!`)
+      setCode('')
+    } catch {
+      showToast('Group not found — check the code')
+    } finally {
+      setJoining(false)
+    }
   }
+
+  // Build leaderboard — inject current user at their position
+  const buildLeaderboard = () => {
+    const base = group?.members || [
+      { name:'Jamie R.',  pts:1240, trips:24, av:'🧑' },
+      { name:'Priya M.',  pts:980,  trips:19, av:'👩' },
+      { name:'Alex T.',   pts:720,  trips:14, av:'🧔' },
+      { name:'Chris W.',  pts:560,  trips:11, av:'👨' },
+      { name:'Sofia L.',  pts:430,  trips:9,  av:'👩' },
+    ]
+
+    // Insert current user if logged in
+    let lb = [...base]
+    if (user) {
+      const userPts = user.xp || 847
+      const userEntry = { name: user.name.split(' ')[0], pts: userPts, trips: 16, av: user.avatar, isYou: true }
+      lb = [...lb, userEntry].sort((a, b) => b.pts - a.pts)
+    }
+
+    return lb.slice(0, 6)
+  }
+
+  const RANK_ICONS = ['🥇','🥈','🥉']
+  const RANK_COLORS = ['#f59e0b','#9ca3af','#cd7c2f']
+  const leaderboard = buildLeaderboard()
+  const pct = group ? Math.round((group.progress / group.goal) * 100) : 68
 
   return (
     <div className="page-content">
@@ -33,7 +80,7 @@ export default function Challenge({ user, showToast }) {
         <div className="code-row">
           <div className="your-code-card">
             <div className="yc-label">Your code</div>
-            <div className="yc-val">{user ? 'GR7X' : '????'}</div>
+            <div className="yc-val">{user ? myCode : '????'}</div>
             <div className="yc-sub">{user ? 'Share with friends →' : 'Sign up to get a code'}</div>
           </div>
           <div className="join-card">
@@ -45,8 +92,11 @@ export default function Challenge({ user, showToast }) {
                 maxLength={4}
                 value={code}
                 onChange={e => setCode(e.target.value.toUpperCase())}
+                onKeyDown={e => e.key === 'Enter' && handleJoin()}
               />
-              <button className="join-btn" onClick={handleJoin}>Join</button>
+              <button className="join-btn" onClick={handleJoin} disabled={joining}>
+                {joining ? '...' : 'Join'}
+              </button>
             </div>
           </div>
         </div>
@@ -54,26 +104,38 @@ export default function Challenge({ user, showToast }) {
         {/* GOAL */}
         <div className="goal-card">
           <div className="goal-top">
-            <div className="goal-txt">🎯 Feb Goal: Remove 50 plastic bottles from the ocean</div>
-            <div className="goal-pct">68%</div>
+            <div className="goal-txt">🎯 Feb Goal: Remove {group?.goal || 50} plastic bottles from the ocean</div>
+            <div className="goal-pct">{pct}%</div>
           </div>
           <div className="goal-bar-bg">
-            <div className="goal-bar-fill" style={{ width: `${goalWidth}%` }} />
+            <div className="goal-bar-fill" style={{ width:`${goalWidth}%` }} />
           </div>
-          <div className="goal-sub-text">34 of 50 bottles equiv. · 6 members · 9 days left</div>
+          <div className="goal-sub-text">
+            {group?.progress || 34} of {group?.goal || 50} bottles equiv. · {leaderboard.length} members · 9 days left
+          </div>
         </div>
 
         {/* LEADERBOARD */}
         <div className="lb-label">Leaderboard — February</div>
-        {LEADERBOARD.map((row, i) => (
-          <div key={i} className={`lb-row ${row.you ? 'you' : ''}`}>
-            <div className="lb-rank" style={{ color: row.rankColor }}>{row.rank}</div>
-            <div className="lb-av">{row.you && user ? user.avatar : row.av}</div>
-            <div className="lb-name">{row.you && user ? user.name.split(' ')[0] : row.name}</div>
+        {leaderboard.map((row, i) => (
+          <div key={i} className={`lb-row ${row.isYou ? 'you' : ''}`}>
+            <div className="lb-rank" style={{ color: RANK_COLORS[i] || 'var(--muted)' }}>
+              {RANK_ICONS[i] || i + 1}
+            </div>
+            <div className="lb-av">{row.av}</div>
+            <div className="lb-name">{row.name}{row.isYou ? ' (you)' : ''}</div>
             <div className="lb-trips">{row.trips} trips</div>
             <div className="lb-pts">{row.pts.toLocaleString()} pts</div>
           </div>
         ))}
+
+        {/* HOW IT WORKS — helpful for demo */}
+        <div style={{ marginTop:'1.5rem', padding:'1rem', background:'var(--surface2)', borderRadius:'12px', border:'1px solid var(--border)' }}>
+          <div style={{ fontSize:'0.72rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.5rem' }}>How it works</div>
+          <div style={{ fontSize:'0.82rem', color:'var(--text2)', lineHeight:1.6 }}>
+            Share your 4-letter code with friends or colleagues. Every green trip you log earns points and contributes to your group's shared goal. The team with the most plastic bottles removed from the ocean wins. 🌊
+          </div>
+        </div>
       </div>
     </div>
   )
