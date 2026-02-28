@@ -129,7 +129,8 @@ export default function Journey({ user, showToast, onNeedSignup }) {
       const green = data.find(r => r.appMode !== 'taxi')
       if (green) setSelected(green.appMode)
       if (mapRef) fitMapToRoutes(mapRef, data)
-    } catch { showToast('Showing estimated routes') }
+        
+    } catch { showToast('Locking in on you...') }
     finally { setLoading(false) }
   }
 
