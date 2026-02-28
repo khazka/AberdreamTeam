@@ -107,6 +107,43 @@ export default function Impact({ user, onNeedSignup }) {
   if (user?.groupCode)
     sdgs.push({ num:17, icon:'🤝', name:'Partnerships', color:'#19486a', count:1 })
 
+  // Smart recommendations — data-driven nudges
+  const recommendations = []
+  if (trips.length === 0) {
+    recommendations.push({ icon:'🗺', text:'Log your first green trip on the Journey tab to start tracking your impact!' })
+  } else {
+    const hasCycle = trips.some(t => t.mode === 'cycle')
+    const hasWalk = trips.some(t => t.mode === 'walk')
+    const cycleCount = trips.filter(t => t.mode === 'cycle').length
+    const walkCount = trips.filter(t => t.mode === 'walk').length
+    const totalCo2 = parseFloat(co2Saved) || 0
+
+    if (!hasCycle) recommendations.push({ icon:'🚴', text:'Try cycling — even one ride a week could save 1.2kg CO₂ and burn 200+ kcal.' })
+    if (hasCycle && cycleCount < 5) recommendations.push({ icon:'🚴', text:`You've cycled ${cycleCount} time${cycleCount!==1?'s':''}. ${5-cycleCount} more to unlock the Cyclist badge!` })
+    if (!hasWalk && hasCycle) recommendations.push({ icon:'🚶', text:'Mix in a walk — shorter trips on foot save the most CO₂ per km.' })
+    if (streakCount > 0 && streakCount < 3) recommendations.push({ icon:'🔥', text:`${3-streakCount} more day${3-streakCount!==1?'s':''} to hit a 3-Day Streak and earn the streak badge!` })
+    if (streakCount >= 3 && streakCount < 7) recommendations.push({ icon:'🔥', text:`Amazing ${streakCount}-day streak! Keep going to hit 7 days.` })
+    if (totalCo2 > 0 && totalCo2 < 5) recommendations.push({ icon:'💚', text:`${(5-totalCo2).toFixed(1)}kg more CO₂ to save to unlock the 5kg CO₂ Saved badge.` })
+    if (trips.length >= 1 && trips.length < 10) recommendations.push({ icon:'⭐', text:`${10-trips.length} more trip${10-trips.length!==1?'s':''} to unlock Dedicated Commuter!` })
+    if (walkCount >= 3 && cycleCount >= 3) recommendations.push({ icon:'🌟', text:'Great mix of walking and cycling — you\'re a true multi-modal commuter!' })
+  }
+
+  // Weekly insight — compare this week vs last week
+  const now = new Date()
+  const thisWeekTrips = trips.filter(t => {
+    const d = new Date(t.timestamp)
+    const diff = (now - d) / (1000 * 60 * 60 * 24)
+    return diff <= 7
+  })
+  const lastWeekTrips = trips.filter(t => {
+    const d = new Date(t.timestamp)
+    const diff = (now - d) / (1000 * 60 * 60 * 24)
+    return diff > 7 && diff <= 14
+  })
+  const thisWeekCo2 = thisWeekTrips.reduce((s, t) => s + parseFloat(t.co2Saved || 0), 0)
+  const lastWeekCo2 = lastWeekTrips.reduce((s, t) => s + parseFloat(t.co2Saved || 0), 0)
+  const weekDelta = lastWeekCo2 > 0 ? Math.round(((thisWeekCo2 - lastWeekCo2) / lastWeekCo2) * 100) : null
+
   // Motivation banner text
   const motivationBanner = user?.motivation ? {
     money:       { icon:'💰', text:`You've saved £${moneySaved} vs taxis this month` },
@@ -195,6 +232,40 @@ export default function Impact({ user, onNeedSignup }) {
                 <div style={{ fontSize:'0.68rem', color:'var(--muted)' }}>{s.count} trip{s.count !== 1 ? 's' : ''} contributed</div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* SMART RECOMMENDATIONS */}
+      {recommendations.length > 0 && (
+        <div style={{ marginBottom:'1rem', padding:'0.8rem', borderRadius:'10px', background:'var(--surface2)', border:'1px solid var(--border)' }}>
+          <div style={{ fontSize:'0.72rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.5rem' }}>
+            🤖 Smart Suggestions
+          </div>
+          {recommendations.slice(0, 3).map((r, i) => (
+            <div key={i} style={{ display:'flex', alignItems:'flex-start', gap:'0.5rem', padding:'0.4rem 0', borderTop: i > 0 ? '1px solid var(--border)' : 'none' }}>
+              <span style={{ fontSize:'1rem', flexShrink:0 }}>{r.icon}</span>
+              <span style={{ fontSize:'0.82rem', color:'var(--text)', lineHeight:1.5 }}>{r.text}</span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* WEEKLY INSIGHT */}
+      {thisWeekTrips.length > 0 && (
+        <div style={{
+          marginBottom:'1rem', padding:'0.7rem 1rem', borderRadius:'10px',
+          background: weekDelta !== null && weekDelta >= 0 ? 'rgba(22,163,74,0.08)' : 'rgba(239,68,68,0.06)',
+          border:'1px solid var(--border)', display:'flex', alignItems:'center', gap:'0.6rem',
+        }}>
+          <span style={{ fontSize:'1.1rem' }}>{weekDelta !== null && weekDelta >= 0 ? '📈' : '📊'}</span>
+          <div style={{ fontSize:'0.82rem', color:'var(--text)', lineHeight:1.5 }}>
+            <strong>This week:</strong> {thisWeekTrips.length} trip{thisWeekTrips.length !== 1 ? 's' : ''}, {thisWeekCo2.toFixed(1)}kg CO₂ saved
+            {weekDelta !== null && (
+              <span style={{ color: weekDelta >= 0 ? 'var(--green, #16a34a)' : 'var(--red, #ef4444)', fontWeight:700 }}>
+                {' '}· {weekDelta >= 0 ? '+' : ''}{weekDelta}% vs last week
+              </span>
+            )}
           </div>
         </div>
       )}
