@@ -227,7 +227,7 @@ export default function Journey({ user, showToast, onNeedSignup }) {
               <Bar data={chartData} options={chartOptions} />
             </div>
             <div className="winners">
-              {['Greenest','Fittest','Cheapest'].map((cat, i) => (
+              {['Best','Average','Worst'].map((cat, i) => (
                 <div key={cat} className="winner-chip">
                   <div className="w-cat">{cat}</div>
                   <div className="w-icon">{WINNERS[persona][i].split(' ')[0]}</div>
