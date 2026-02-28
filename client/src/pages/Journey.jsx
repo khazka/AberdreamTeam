@@ -30,10 +30,10 @@ function decodePolyline(encoded) {
 }
 
 const MODE_CONFIG = {
-  walk:  { emoji:'🚶', name:'Walk',      badge:'🏆 Greenest',      badgeClass:'badge-green'  },
-  cycle: { emoji:'🚴', name:'Cycle',     badge:'💪 Fittest',       badgeClass:'badge-blue'   },
-  bus:   { emoji:'🚌', name:'Bus',       badge:'⚡ Fastest Green',  badgeClass:'badge-purple' },
-  taxi:  { emoji:'🚕', name:'City Taxi', badge:null,               badgeClass:'badge-red'    },
+  walk:  { emoji:'🚶', name:'Walk',      badgeClass:'badge-green'  },
+  cycle: { emoji:'🚴', name:'Cycle',     badgeClass:'badge-blue'   },
+  bus:   { emoji:'🚌', name:'Bus',       badgeClass:'badge-purple' },
+  taxi:  { emoji:'🚕', name:'City Taxi', badgeClass:'badge-red'    },
 }
 
 function LogTripModal({ route, onClose, onConfirm }) {
@@ -57,7 +57,7 @@ function LogTripModal({ route, onClose, onConfirm }) {
   )
 }
 
-export default function Journey({ user, showToast, onNeedSignup }) {
+export default function Journey({ user, showToast, onNeedSignup, onTripLogged }) {
   const [from, setFrom]         = useState('')
   const [to, setTo]             = useState('')
   const [routes, setRoutes]     = useState([])
@@ -68,6 +68,7 @@ export default function Journey({ user, showToast, onNeedSignup }) {
   const [loading, setLoading]   = useState(false)
   const [rdsWidth, setRdsWidth] = useState(0)
   const [showLog, setShowLog]   = useState(false)
+  const [cityName, setCityName] = useState('Aberdeen')
 
   const { isLoaded } = useJsApiLoader({
     googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_KEY || '',
@@ -77,10 +78,24 @@ export default function Journey({ user, showToast, onNeedSignup }) {
   const [toAC, setToAC]     = useState(null)
   const [mapRef, setMapRef]  = useState(null)
 
-  useEffect(() => {
-    getWeather('Aberdeen')
+  // Extract city name from a place string (e.g. "Aberdeen Station" -> "Aberdeen")
+  const extractCity = (place) => {
+    if (!place) return 'Aberdeen'
+    const parts = place.split(',').map(s => s.trim())
+    // If it has comma-separated parts, use the second-to-last or first meaningful one
+    if (parts.length >= 2) return parts[parts.length - 2] || parts[0]
+    // Otherwise take the first word (often the city)
+    return parts[0].split(' ')[0] || 'Aberdeen'
+  }
+
+  const fetchWeather = (city) => {
+    getWeather(city)
       .then(w => { setWeather(w); setTimeout(() => setRdsWidth(w.rainyDayScore), 400) })
       .catch(() => setTimeout(() => setRdsWidth(78), 400))
+  }
+
+  useEffect(() => {
+    fetchWeather('Aberdeen')
     fetchRoutes()
   }, [])
 
@@ -123,6 +138,10 @@ export default function Journey({ user, showToast, onNeedSignup }) {
 
   const fetchRoutes = async () => {
     setLoading(true)
+    // Update weather for the city in the "from" field
+    const city = extractCity(from)
+    setCityName(city)
+    fetchWeather(city)
     try {
       const data = await getRoutes(from, to)
       setRoutes(data)
@@ -140,10 +159,11 @@ export default function Journey({ user, showToast, onNeedSignup }) {
     setShowLog(false)
     if (!user) { onNeedSignup(); return }
     try {
-      await logTrip({ userId:user.id, mode:selected, from, to,
+      const result = await logTrip({ userId:user.id, mode:selected, from, to,
         distanceKm:selectedRoute.distanceKm, co2Saved:selectedRoute.co2Saved,
         moneySaved:selectedRoute.moneySaved, calories:selectedRoute.calories })
-      showToast(`✅ Trip saved! +${selectedRoute.xpEarned} XP`)
+      if (onTripLogged) onTripLogged(result.xpEarned || selectedRoute.xpEarned)
+      showToast(`✅ Trip saved! +${result.xpEarned || selectedRoute.xpEarned} XP`)
     } catch { showToast('Trip logged locally') }
   }
 
@@ -183,6 +203,20 @@ export default function Journey({ user, showToast, onNeedSignup }) {
     if (cat === 'Fittest')  return MODE_CONFIG[[...ordered].sort((a,b) => b.calories-a.calories)[0]?.appMode] || MODE_CONFIG.cycle
     if (cat === 'Cheapest') return MODE_CONFIG[[...ordered].sort((a,b) => parseFloat(a.cost)-parseFloat(b.cost))[0]?.appMode] || MODE_CONFIG.walk
     return MODE_CONFIG.walk
+  }
+
+  // Compute badges dynamically from actual route data
+  const getRouteBadge = (mode) => {
+    if (!routes.length) return null
+    const nonTaxi = routes.filter(r => r.appMode !== 'taxi')
+    if (!nonTaxi.length) return null
+    const greenest = [...nonTaxi].sort((a, b) => parseFloat(a.co2Kg) - parseFloat(b.co2Kg))[0]
+    const fittest  = [...nonTaxi].sort((a, b) => b.calories - a.calories)[0]
+    const fastest  = [...nonTaxi].sort((a, b) => a.durationMin - b.durationMin)[0]
+    if (mode === greenest?.appMode) return '🏆 Greenest'
+    if (mode === fittest?.appMode)  return '💪 Fittest'
+    if (mode === fastest?.appMode)  return '⚡ Fastest Green'
+    return null
   }
 
   const surgeRoute = routes.find(r => r.isSurge)
@@ -235,7 +269,7 @@ export default function Journey({ user, showToast, onNeedSignup }) {
           <div className="rds-card">
             <div className="rds-top">
               <span className="rds-label">Rainy Day Score™</span>
-              <span className="rds-badge">Aberdeen · Live</span>
+              <span className="rds-badge">{cityName} · Live</span>
             </div>
             <div className="rds-row">
               <div className="rds-score">{weather?.rainyDayScore || 78}</div>
@@ -248,7 +282,7 @@ export default function Journey({ user, showToast, onNeedSignup }) {
           {loading && <div style={{ textAlign:'center', padding:'1rem', color:'var(--muted)', fontSize:'0.85rem' }}>Fetching live routes...</div>}
           {routes.map(route => {
             const cfg = MODE_CONFIG[route.appMode] || {}
-            const badge = (route.appMode==='taxi' && route.isSurge) ? `⚡ Surge ×${route.surgeMultiplier}` : cfg.badge
+            const badge = (route.appMode==='taxi' && route.isSurge) ? `⚡ Surge ×${route.surgeMultiplier}` : getRouteBadge(route.appMode)
             return (
               <RouteCard key={route.appMode} mode={route.appMode} name={cfg.name} emoji={cfg.emoji}
                 badge={badge} badgeClass={cfg.badgeClass}
