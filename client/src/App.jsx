@@ -31,38 +31,37 @@ export default function App() {
     setTimeout(() => setToast(''), 3000)
   }
 
-  const handleSignup = async (formData) => {
-    try {
-      // Save to backend
-      const savedUser = await createUser({
-        name:    formData.name,
-        email:   formData.email,
-        avatar:  formData.avatar,
-        persona: formData.persona,
-      })
-      const fullUser = { ...savedUser, avatar: formData.avatar, persona: formData.persona }
-      setUser(fullUser)
-      localStorage.setItem('core2g_user', JSON.stringify(fullUser))
-      setShowSignup(false)
-      showToast(`Welcome, ${fullUser.name.split(' ')[0]}! ${fullUser.avatar} Avatar created`)
-      setTimeout(() => setScreen('impact'), 900)
-    } catch {
-      // Fallback — save locally if backend is down
-      const localUser = {
-        id:      `local_${Date.now()}`,
-        name:    formData.name,
-        email:   formData.email,
-        avatar:  formData.avatar,
-        persona: formData.persona,
-        xp:      0,
-      }
-      setUser(localUser)
-      localStorage.setItem('core2g_user', JSON.stringify(localUser))
-      setShowSignup(false)
-      showToast(`Welcome, ${localUser.name.split(' ')[0]}! ${localUser.avatar} Avatar created`)
-      setTimeout(() => setScreen('impact'), 900)
+const handleSignup = async (formData) => {
+  try {
+    const savedUser = await createUser({
+      name:    formData.name,
+      email:   formData.email,
+      avatar:  formData.avatar,
+      persona: formData.persona,
+    })
+    const fullUser = { ...savedUser, avatar: formData.avatar, persona: formData.persona, motivation: formData.motivation }
+    setUser(fullUser)
+    localStorage.setItem('core2g_user', JSON.stringify(fullUser))
+    setShowSignup(false)
+    showToast(`Welcome, ${fullUser.name.split(' ')[0]}! ${fullUser.avatar} Avatar created`)
+    setTimeout(() => setScreen('impact'), 900)
+  } catch {
+    const localUser = {
+      id:      `local_${Date.now()}`,
+      name:    formData.name,
+      email:   formData.email,
+      avatar:  formData.avatar,
+      persona: formData.persona,
+      motivation: formData.motivation,
+      xp:      0,
     }
+    setUser(localUser)
+    localStorage.setItem('core2g_user', JSON.stringify(localUser))
+    setShowSignup(false)
+    showToast(`Welcome, ${localUser.name.split(' ')[0]}! ${localUser.avatar} Avatar created`)
+    setTimeout(() => setScreen('impact'), 900)
   }
+}
 
   // Called by Journey after a trip is logged — updates XP in state + localStorage
   const handleTripLogged = (xpEarned) => {
@@ -85,11 +84,12 @@ export default function App() {
       <main className="app-main">
         {screen === 'journey' && (
           <Journey
-            user={user}
-            showToast={showToast}
-            onNeedSignup={() => setShowSignup(true)}
-            onTripLogged={handleTripLogged}
-          />
+  user={user}
+  showToast={showToast}
+  onNeedSignup={() => setShowSignup(true)}
+  onTripLogged={handleTripLogged}
+  onGoToImpact={() => setScreen('impact')}
+/>
         )}
         {screen === 'impact' && (
           <Impact

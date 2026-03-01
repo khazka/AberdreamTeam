@@ -68,7 +68,8 @@ function LogTripModal({ route, onClose, onConfirm }) {
   )
 }
 
-export default function Journey({ user, showToast, onNeedSignup, onTripLogged }) {
+export default function Journey({ user, showToast, onNeedSignup, onTripLogged, onGoToImpact })
+ {
   const [from, setFrom]         = useState('')
   const [to, setTo]             = useState('')
   const [routes, setRoutes]     = useState([])
@@ -167,17 +168,18 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
 
   const selectedRoute = routes.find(r => r.appMode === selected)
 
-  const handleLogConfirm = async () => {
-    setShowLog(false)
-    if (!user) { onNeedSignup(); return }
-    try {
-      const result = await logTrip({ userId:user.id, mode:selected, from, to,
-        distanceKm:selectedRoute.distanceKm, co2Saved:selectedRoute.co2Saved,
-        moneySaved:selectedRoute.moneySaved, calories:selectedRoute.calories })
-      if (onTripLogged) onTripLogged(result.xpEarned || selectedRoute.xpEarned)
-      showToast(`✅ Trip saved! +${result.xpEarned || selectedRoute.xpEarned} XP`)
-    } catch { showToast('Trip logged locally') }
-  }
+const handleLogConfirm = async () => {
+  setShowLog(false)
+  if (!user) { onNeedSignup(); return }
+  try {
+    const result = await logTrip({ userId:user.id, mode:selected, from, to,
+      distanceKm:selectedRoute.distanceKm, co2Saved:selectedRoute.co2Saved,
+      moneySaved:selectedRoute.moneySaved, calories:selectedRoute.calories })
+    if (onTripLogged) onTripLogged(result.xpEarned || selectedRoute.xpEarned)
+    showToast(`✅ Trip saved! +${result.xpEarned || selectedRoute.xpEarned} XP`)
+    if (onGoToImpact) setTimeout(() => onGoToImpact(), 800)  // ← ADD THIS LINE
+  } catch { showToast('Trip logged locally') }
+}
 
   const buildChartData = () => {
     if (!routes.length) return { labels:[], datasets:[{ data:[] }] }
