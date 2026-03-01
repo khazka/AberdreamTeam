@@ -26,7 +26,7 @@ export default function Impact({ user, onNeedSignup }) {
     if (!user?.id) return
     setLoading(true)
 
-    // Load any locally-cached trips immediately so UI isn't blank while API loads
+    // Show locally-cached trips instantly while API loads
     try {
       const local = JSON.parse(localStorage.getItem(`trips_${user.id}`)) || []
       if (local.length > 0) setTrips(local)
@@ -38,12 +38,9 @@ export default function Impact({ user, onNeedSignup }) {
     ]).then(([impactData, tripData]) => {
       if (impactData) setImpact(impactData)
       if (tripData && tripData.length > 0) {
-        // Merge: API trips take precedence, but keep any local-only trips
-        setTrips(prev => {
-          const apiIds = new Set(tripData.map(t => t.id))
-          const localOnly = prev.filter(t => !apiIds.has(t.id))
-          return [...tripData, ...localOnly].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
-        })
+        // API is source of truth — overwrite local cache to prevent duplicates
+        setTrips(tripData)
+        try { localStorage.setItem(`trips_${user.id}`, JSON.stringify(tripData)) } catch {}
       }
     }).finally(() => setLoading(false))
   }, [user])
@@ -86,8 +83,7 @@ const streakCount = (() => {
   return count
 })()
 
-  // Compute stats directly from local trips array — this is the source of truth.
-  // The API `impact` object is only used as a fallback when no trips are loaded locally.
+  // Compute stats from local trips (source of truth), fall back to API impact object
   const computedFromTrips = trips.length > 0 ? (() => {
     const totalCo2Saved = trips.reduce((sum, t) => sum + parseFloat(t.co2Saved || 0), 0)
     const totalCalories = trips.reduce((sum, t) =>
