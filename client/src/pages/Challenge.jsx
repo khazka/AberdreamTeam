@@ -1,6 +1,14 @@
 import { useState, useEffect } from 'react'
 import { getGroup, joinGroup, createGroup } from '../utils/api'
 
+const BOTS = [
+  { name: 'James R.',  pts: 1240, trips: 24, av: '👤', isBot: true },
+  { name: 'Priya M.',  pts: 980,  trips: 19, av: '👤', isBot: true },
+  { name: 'Alex T.',   pts: 720,  trips: 14, av: '👤', isBot: true },
+  { name: 'Sophie L.', pts: 560,  trips: 11, av: '👤', isBot: true },
+  { name: 'Chris W.',  pts: 430,  trips: 9,  av: '👤', isBot: true },
+]
+
 export default function Challenge({ user, showToast }) {
   const [code, setCode]           = useState('')
   const [goalWidth, setGoalWidth] = useState(0)
@@ -43,29 +51,26 @@ export default function Challenge({ user, showToast }) {
     }
   }
 
-  // Build leaderboard — inject current user at their position
+  // Build leaderboard — bots + current user sorted by pts
   const buildLeaderboard = () => {
-    const base = group?.members || [
-      { name:'Jamie R.',  pts:1240, trips:24, av:'🧑' },
-      { name:'Priya M.',  pts:980,  trips:19, av:'👩' },
-      { name:'Alex T.',   pts:720,  trips:14, av:'🧔' },
-      { name:'Chris W.',  pts:560,  trips:11, av:'👨' },
-      { name:'Sofia L.',  pts:430,  trips:9,  av:'👩' },
-    ]
+    let lb = [...BOTS]
 
-    // Insert current user if logged in
-    let lb = [...base]
     if (user) {
-      const userPts = user.xp || 847
-      const userEntry = { name: user.name.split(' ')[0], pts: userPts, trips: 16, av: user.avatar, isYou: true }
-      lb = [...lb, userEntry].sort((a, b) => b.pts - a.pts)
+      const userEntry = {
+        name: user.name.split(' ')[0] + ' (you)',
+        pts: user.xp || 847,
+        trips: 16,
+        av: user.avatar || '🌿',
+        isYou: true,
+      }
+      lb = [...lb, userEntry]
     }
 
-    return lb.slice(0, 6)
+    return lb.sort((a, b) => b.pts - a.pts).slice(0, 6)
   }
 
-  const RANK_ICONS = ['🥇','🥈','🥉']
-  const RANK_COLORS = ['#f59e0b','#9ca3af','#cd7c2f']
+  const RANK_ICONS  = ['🥇', '🥈', '🥉']
+  const RANK_COLORS = ['#f59e0b', '#9ca3af', '#cd7c2f']
   const leaderboard = buildLeaderboard()
   const pct = group ? Math.round((group.progress / group.goal) * 100) : 68
 
@@ -108,7 +113,7 @@ export default function Challenge({ user, showToast }) {
             <div className="goal-pct">{pct}%</div>
           </div>
           <div className="goal-bar-bg">
-            <div className="goal-bar-fill" style={{ width:`${goalWidth}%` }} />
+            <div className="goal-bar-fill" style={{ width: `${goalWidth}%` }} />
           </div>
           <div className="goal-sub-text">
             {group?.progress || 34} of {group?.goal || 50} bottles equiv. · {leaderboard.length} members · 9 days left
@@ -123,16 +128,30 @@ export default function Challenge({ user, showToast }) {
               {RANK_ICONS[i] || i + 1}
             </div>
             <div className="lb-av">{row.av}</div>
-            <div className="lb-name">{row.name}{row.isYou ? ' (you)' : ''}</div>
+            <div className="lb-name">
+              {row.name}
+              {row.isBot && (
+                <span style={{
+                  marginLeft: '0.4rem',
+                  fontSize: '0.65rem',
+                  fontWeight: 600,
+                  color: 'var(--muted)',
+                  background: 'var(--surface2)',
+                  borderRadius: '6px',
+                  padding: '1px 5px',
+                  verticalAlign: 'middle',
+                }}>BOT</span>
+              )}
+            </div>
             <div className="lb-trips">{row.trips} trips</div>
             <div className="lb-pts">{row.pts.toLocaleString()} pts</div>
           </div>
         ))}
 
-        {/* HOW IT WORKS — helpful for demo */}
-        <div style={{ marginTop:'1.5rem', padding:'1rem', background:'var(--surface2)', borderRadius:'12px', border:'1px solid var(--border)' }}>
-          <div style={{ fontSize:'0.72rem', fontWeight:700, color:'var(--muted)', textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:'0.5rem' }}>How it works</div>
-          <div style={{ fontSize:'0.82rem', color:'var(--text2)', lineHeight:1.6 }}>
+        {/* HOW IT WORKS */}
+        <div style={{ marginTop: '1.5rem', padding: '1rem', background: 'var(--surface2)', borderRadius: '12px', border: '1px solid var(--border)' }}>
+          <div style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>How it works</div>
+          <div style={{ fontSize: '0.82rem', color: 'var(--text2)', lineHeight: 1.6 }}>
             Share your 4-letter code with friends or colleagues. Every green trip you log earns points and contributes to your group's shared goal. The team with the most plastic bottles removed from the ocean wins. 🌊
           </div>
         </div>
