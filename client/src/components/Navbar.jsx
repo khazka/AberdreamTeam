@@ -11,7 +11,7 @@ export default function Navbar({ screen, setScreen, theme, toggleTheme, user, on
   return (
     <nav className="navbar">
       <button className="navbar-logo" onClick={() => setScreen('journey')}>
-        Core<span>2G</span>
+        Green<span>Miles</span>
       </button>
 
       <div className="navbar-center">

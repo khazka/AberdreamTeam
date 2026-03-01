@@ -275,7 +275,7 @@ body {
   transition: all 0.15s; color: var(--muted);
 }
 .persona-pill.active { border-color: var(--green); color: var(--green); font-weight: 700; background: rgba(22,163,74,0.1); }
-.chart-wrap { position: relative; height: 170px; margin-bottom: 0.7rem; }
+.chart-wrap { position: relative; height: 190px; margin-bottom: 0.7rem; }
 .winners { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
 .winner-chip { border-radius: 8px; padding: 0.45rem; text-align: center; border: 1px solid var(--border); background: var(--surface2); }
 .w-cat { font-size: 0.58rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 0.15rem; }

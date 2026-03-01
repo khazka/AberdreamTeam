@@ -190,31 +190,60 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
       return 50
     })
     return {
-      labels: ordered.map(r => `${MODE_CONFIG[r.appMode]?.emoji} ${MODE_CONFIG[r.appMode]?.name}`),
+      labels: ordered.map(r => [MODE_CONFIG[r.appMode]?.emoji || '', MODE_CONFIG[r.appMode]?.name || '']),
       datasets: [{ data: values,
         backgroundColor:['rgba(22,163,74,0.8)','rgba(59,130,246,0.8)','rgba(139,92,246,0.8)','rgba(239,68,68,0.35)', 'rgba(99,102,241,0.8)','rgba(16,185,129,0.8)'],
-        borderRadius:6, borderSkipped:false }]
+        borderRadius:8, borderSkipped:false }]
     }
   }
 
   const isDark = document.documentElement.getAttribute('data-theme') === 'dark'
   const chartOptions = {
     responsive:true, maintainAspectRatio:false,
-    plugins:{ legend:{display:false} },
+    plugins:{
+      legend:{display:false},
+      tooltip:{
+        callbacks:{
+          title: (items) => items[0]?.label?.join(' ') || '',
+          label: (item) => ` Score: ${Math.round(item.raw)}`,
+        },
+        backgroundColor: isDark?'rgba(30,30,30,0.95)':'rgba(255,255,255,0.95)',
+        titleColor: isDark?'#e5e7eb':'#111827',
+        bodyColor: isDark?'#9ca3af':'#6b7280',
+        borderColor: isDark?'rgba(255,255,255,0.1)':'rgba(0,0,0,0.08)',
+        borderWidth:1, padding:8, cornerRadius:8,
+      }
+    },
     scales:{
-      y:{ beginAtZero:true, max:110, grid:{ color: isDark?'rgba(255,255,255,0.06)':'rgba(0,0,0,0.05)' }, ticks:{ font:{size:10}, color:'#6b7280' } },
-      x:{ grid:{display:false}, ticks:{ font:{size:11} } }
-    }
+      y:{
+        display:false,
+        beginAtZero:true, max:115,
+      },
+      x:{
+        grid:{display:false},
+        border:{display:false},
+        ticks:{
+          font:{ size:13 },
+          color: isDark?'rgba(255,255,255,0.7)':'rgba(0,0,0,0.6)',
+          maxRotation:0,
+          minRotation:0,
+        }
+      }
+    },
+    layout:{ padding:{ top:8 } }
   }
 
-  const getWinner = (cat) => {
-    if (!routes.length) return MODE_CONFIG.walk
-    const order = ['walk','cycle','bus','taxi']
+  // Returns [best, average, worst] routes sorted by the active persona metric
+  const getPersonaRanking = () => {
+    if (!routes.length) return [null, null, null]
+    const order = ['walk','cycle','bus','taxi','ev','train']
     const ordered = order.map(m => routes.find(r => r.appMode === m)).filter(Boolean)
-    if (cat === 'Greenest') return MODE_CONFIG[[...ordered].sort((a,b) => parseFloat(a.co2Kg)-parseFloat(b.co2Kg))[0]?.appMode] || MODE_CONFIG.walk
-    if (cat === 'Fittest')  return MODE_CONFIG[[...ordered].sort((a,b) => b.calories-a.calories)[0]?.appMode] || MODE_CONFIG.cycle
-    if (cat === 'Cheapest') return MODE_CONFIG[[...ordered].sort((a,b) => parseFloat(a.cost)-parseFloat(b.cost))[0]?.appMode] || MODE_CONFIG.walk
-    return MODE_CONFIG.walk
+    let sorted
+    if (persona === 'planet')  sorted = [...ordered].sort((a,b) => parseFloat(a.co2Kg) - parseFloat(b.co2Kg))
+    if (persona === 'fitness') sorted = [...ordered].sort((a,b) => b.calories - a.calories)
+    if (persona === 'budget')  sorted = [...ordered].sort((a,b) => parseFloat(a.cost) - parseFloat(b.cost))
+    const mid = Math.floor(sorted.length / 2)
+    return [sorted[0], sorted[mid] || sorted[1], sorted[sorted.length - 1]]
   }
 
   // Compute badges dynamically from actual route data
@@ -334,9 +363,11 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
             </div>
             <div className="chart-wrap"><Bar key={`${persona}-${routes.map(r=>r.distanceKm).join(',')}`} data={buildChartData()} options={chartOptions} /></div>
             <div className="winners">
-              {['Greenest','Fittest','Cheapest'].map(cat => {
-                const w = getWinner(cat)
-                return <div key={cat} className="winner-chip"><div className="w-cat">{cat}</div><div className="w-icon">{w?.emoji}</div><div className="w-lbl">{w?.name}</div></div>
+              {['Best','Average','Worst'].map((cat, i) => {
+                const ranked = getPersonaRanking()
+                const r = ranked[i]
+                const w = r ? MODE_CONFIG[r.appMode] : null
+                return <div key={cat} className="winner-chip"><div className="w-cat">{cat}</div><div className="w-icon">{w?.emoji || '—'}</div><div className="w-lbl">{w?.name || '—'}</div></div>
               })}
             </div>
           </div>
