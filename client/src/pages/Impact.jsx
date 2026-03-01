@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getLevel, getXPProgress } from '../utils/impact'
+import { getLevel, getXPProgress, co2ToImpact, calcCost, calcCalories } from '../utils/impact'
 import { getUserImpact, getUserTrips } from '../utils/api'
 
 const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
@@ -25,12 +25,26 @@ export default function Impact({ user, onNeedSignup }) {
   useEffect(() => {
     if (!user?.id) return
     setLoading(true)
+
+    // Load any locally-cached trips immediately so UI isn't blank while API loads
+    try {
+      const local = JSON.parse(localStorage.getItem(`trips_${user.id}`)) || []
+      if (local.length > 0) setTrips(local)
+    } catch {}
+
     Promise.all([
       getUserImpact(user.id).catch(() => null),
-      getUserTrips(user.id).catch(() => []),
+      getUserTrips(user.id).catch(() => null),
     ]).then(([impactData, tripData]) => {
       if (impactData) setImpact(impactData)
-      if (tripData)   setTrips(tripData)
+      if (tripData && tripData.length > 0) {
+        // Merge: API trips take precedence, but keep any local-only trips
+        setTrips(prev => {
+          const apiIds = new Set(tripData.map(t => t.id))
+          const localOnly = prev.filter(t => !apiIds.has(t.id))
+          return [...tripData, ...localOnly].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
+        })
+      }
     }).finally(() => setLoading(false))
   }, [user])
 
@@ -72,13 +86,33 @@ const streakCount = (() => {
   return count
 })()
 
-  // Use real impact data if available, else zeros
-  const co2Saved      = impact ? parseFloat(impact.co2Saved).toFixed(2)      : '0'
-  const moneySaved    = impact ? parseFloat(impact.moneySaved).toFixed(2)     : '0'
-  const calories      = impact ? impact.calories                               : 0
-  const plasticBottles = impact ? impact.plasticBottles                        : '0'
-  const treesEquiv    = impact ? impact.treesEquiv                             : '0'
-  const totalXP       = impact ? impact.xp                                     : xp
+  // Compute stats directly from local trips array — this is the source of truth.
+  // The API `impact` object is only used as a fallback when no trips are loaded locally.
+  const computedFromTrips = trips.length > 0 ? (() => {
+    const totalCo2Saved = trips.reduce((sum, t) => sum + parseFloat(t.co2Saved || 0), 0)
+    const totalCalories = trips.reduce((sum, t) =>
+      sum + (t.calories != null ? t.calories : calcCalories(t.mode, parseFloat(t.distanceKm || 0))), 0)
+    const totalMoneySaved = trips.reduce((sum, t) => {
+      const taxiCost = parseFloat(calcCost('taxi', parseFloat(t.distanceKm || 0)))
+      const modeCost = parseFloat(calcCost(t.mode,  parseFloat(t.distanceKm || 0)))
+      return sum + Math.max(0, taxiCost - modeCost)
+    }, 0)
+    const { plasticBottles: pb, trees } = co2ToImpact(totalCo2Saved)
+    return {
+      co2Saved:      totalCo2Saved.toFixed(2),
+      moneySaved:    totalMoneySaved.toFixed(2),
+      calories:      Math.round(totalCalories),
+      plasticBottles: pb,
+      treesEquiv:    trees,
+    }
+  })() : null
+
+  const co2Saved       = computedFromTrips?.co2Saved       ?? (impact ? parseFloat(impact.co2Saved).toFixed(2)   : '0')
+  const moneySaved     = computedFromTrips?.moneySaved      ?? (impact ? parseFloat(impact.moneySaved).toFixed(2) : '0')
+  const calories       = computedFromTrips?.calories        ?? (impact ? impact.calories                          : 0)
+  const plasticBottles = computedFromTrips?.plasticBottles  ?? (impact ? impact.plasticBottles                    : '0')
+  const treesEquiv     = computedFromTrips?.treesEquiv      ?? (impact ? impact.treesEquiv                        : '0')
+  const totalXP        = impact?.xp ?? xp
 
   // Earned badges based on real data
   const earnedBadges = []

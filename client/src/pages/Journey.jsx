@@ -171,14 +171,45 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged, o
 const handleLogConfirm = async () => {
   setShowLog(false)
   if (!user) { onNeedSignup(); return }
+
+  const tripPayload = {
+    userId:      user.id,
+    mode:        selected,
+    from,
+    to,
+    distanceKm:  selectedRoute.distanceKm,
+    co2Saved:    selectedRoute.co2Saved,
+    moneySaved:  selectedRoute.moneySaved,
+    calories:    selectedRoute.calories,
+  }
+
+  // Always cache the trip locally so Impact page has data even when API is offline
+  const saveLocally = (xpEarned) => {
+    const localTrip = {
+      ...tripPayload,
+      id:        `local_${Date.now()}`,
+      xpEarned,
+      timestamp: new Date().toISOString(),
+    }
+    try {
+      const key = `trips_${user.id}`
+      const existing = JSON.parse(localStorage.getItem(key)) || []
+      localStorage.setItem(key, JSON.stringify([localTrip, ...existing]))
+    } catch {}
+  }
+
   try {
-    const result = await logTrip({ userId:user.id, mode:selected, from, to,
-      distanceKm:selectedRoute.distanceKm, co2Saved:selectedRoute.co2Saved,
-      moneySaved:selectedRoute.moneySaved, calories:selectedRoute.calories })
-    if (onTripLogged) onTripLogged(result.xpEarned || selectedRoute.xpEarned)
-    showToast(`✅ Trip saved! +${result.xpEarned || selectedRoute.xpEarned} XP`)
-    if (onGoToImpact) setTimeout(() => onGoToImpact(), 800)  // ← ADD THIS LINE
-  } catch { showToast('Trip logged locally') }
+    const result = await logTrip(tripPayload)
+    const xp = result.xpEarned || selectedRoute.xpEarned
+    saveLocally(xp)
+    if (onTripLogged) onTripLogged(xp)
+    showToast(`✅ Trip saved! +${xp} XP`)
+    if (onGoToImpact) setTimeout(() => onGoToImpact(), 800)
+  } catch {
+    saveLocally(selectedRoute.xpEarned)
+    if (onTripLogged) onTripLogged(selectedRoute.xpEarned)
+    showToast('Trip logged locally')
+  }
 }
 
   const buildChartData = () => {
