@@ -7,9 +7,56 @@ const app = express()
 app.use(cors())
 app.use(express.json())
 
-// ══ IN-MEMORY STORE (replace with Supabase/SQLite for persistence) ══
-const users  = {}
-const groups = {}
+const Database = require('better-sqlite3')
+const db = new Database('core2g.db')
+localStorage.clear()
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    email TEXT NOT NULL,
+    avatar TEXT,
+    persona TEXT,
+    motivation TEXT,
+    xp INTEGER DEFAULT 0,
+    created_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS trips (
+    id TEXT PRIMARY KEY,
+    user_id TEXT,
+    mode TEXT,
+    from_place TEXT,
+    to_place TEXT,
+    distance_km REAL,
+    co2_saved REAL,
+    money_saved REAL,
+    calories INTEGER,
+    xp_earned INTEGER,
+    timestamp TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS groups_table (
+    code TEXT PRIMARY KEY,
+    goal INTEGER DEFAULT 50,
+    progress REAL DEFAULT 0,
+    created_at TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS group_members (
+    code TEXT,
+    user_id TEXT,
+    joined_at TEXT,
+    PRIMARY KEY (code, user_id)
+  );
+`)
+
+
+const existing = db.prepare('SELECT code FROM groups_table WHERE code = ?').get('GR7X')
+if (!existing) {
+  db.prepare('INSERT INTO groups_table (code, goal, progress, created_at) VALUES (?,?,?,?)').run('GR7X', 50, 34, new Date().toISOString())
+}
 
 groups['GR7X'] = {
   code: 'GR7X', goal: 50, progress: 34,
@@ -216,65 +263,129 @@ app.get('/api/weather', async (req, res) => {
 
 // ══ USERS ══
 app.post('/api/users', (req, res) => {
-  const { name, email, avatar, persona } = req.body
-  if (!name || !email) return res.status(400).json({ error: 'Name and email required' })
-  const id = `user_${Date.now()}`
-  users[id] = { id, name, email, avatar, persona, xp:0, trips:[], createdAt: new Date().toISOString() }
-  res.json(users[id])
+  const { name, email, avatar, persona, motivation } = req.body
+  const id = 'user_' + Date.now()
+
+  db.prepare(`
+    INSERT INTO users 
+    (id,name,email,avatar,persona,motivation,xp,created_at) 
+    VALUES (?,?,?,?,?,?,?,?)
+  `).run(
+    id,
+    name,
+    email,
+    avatar || '🌿',
+    persona || 'planet',
+    motivation || '',
+    0,
+    new Date().toISOString()
+  )
+
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(id)
+  res.json(user)
 })
 app.get('/api/users/:id', (req, res) => {
-  const u = users[req.params.id]
-  if (!u) return res.status(404).json({ error: 'Not found' })
-  res.json(u)
-})
+  const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.params.id)
 
+  if (!user) return res.status(404).json({ error: 'Not found' })
+
+  res.json(user)
+})
+console.log("Trip payload:", req.body)
 // ══ TRIPS ══
 app.post('/api/trips', (req, res) => {
   const { userId, mode, from, to, distanceKm, co2Saved, moneySaved, calories } = req.body
-  const BASE_XP = { walk:30, cycle:35, bus:20, taxi:0 }
-  const xpEarned = (BASE_XP[mode]||0) + Math.round(parseFloat(co2Saved||0) * 10)
-  const trip = { id:`trip_${Date.now()}`, userId, mode, from, to,
-    distanceKm: parseFloat(distanceKm), co2Saved: parseFloat(co2Saved),
-    moneySaved: parseFloat(moneySaved), calories: parseInt(calories),
-    xpEarned, timestamp: new Date().toISOString() }
-  if (userId && users[userId]) { users[userId].trips.push(trip); users[userId].xp += xpEarned }
+
+  const BASE_XP = { walk:30, cycle:35, bus:20, train:25, ev:18, taxi:0 }
+
+  const xpEarned = (BASE_XP[mode] || 0) + Math.round(parseFloat(co2Saved || 0) * 10)
+
+  const tripId = 'trip_' + Date.now()
+
+  db.prepare(`
+    INSERT INTO trips
+    (id,user_id,mode,from_place,to_place,distance_km,co2_saved,money_saved,calories,xp_earned,timestamp)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?)
+  `).run(
+    tripId,
+    userId || null,
+    mode,
+    from,
+    to,
+    parseFloat(distanceKm) || 0,
+    parseFloat(co2Saved) || 0,
+    parseFloat(moneySaved) || 0,
+    parseInt(calories) || 0,
+    xpEarned,
+    new Date().toISOString()
+  )
+
+  if (userId) {
+    db.prepare('UPDATE users SET xp = xp + ? WHERE id = ?')
+      .run(xpEarned, userId)
+  }
+
+  const trip = db.prepare('SELECT * FROM trips WHERE id = ?').get(tripId)
+
   res.json({ trip, xpEarned })
 })
 app.get('/api/trips/:userId', (req, res) => {
-  const u = users[req.params.userId]
-  if (!u) return res.status(404).json({ error: 'Not found' })
-  res.json(u.trips)
+  const trips = db.prepare(`
+    SELECT * FROM trips 
+    WHERE user_id = ? 
+    ORDER BY timestamp DESC
+  `).all(req.params.userId)
+
+  res.json(trips)
 })
 app.get('/api/impact/:userId', (req, res) => {
-  const u = users[req.params.userId]
-  if (!u) return res.status(404).json({ error: 'Not found' })
-  const t = u.trips.reduce((a,t) => ({
-    co2Saved:   a.co2Saved   + t.co2Saved,
-    moneySaved: a.moneySaved + t.moneySaved,
-    calories:   a.calories   + t.calories,
-    tripCount:  a.tripCount  + 1,
-  }), { co2Saved:0, moneySaved:0, calories:0, tripCount:0 })
-  t.plasticBottles = (t.co2Saved * 0.47).toFixed(1)
-  t.treesEquiv     = (t.co2Saved / 21).toFixed(3)
-  t.xp             = u.xp
-  res.json(t)
-})
+  const user = db.prepare('SELECT * FROM users WHERE id = ?')
+    .get(req.params.userId)
 
+  if (!user) return res.status(404).json({ error:'Not found' })
+
+  const totals = db.prepare(`
+    SELECT 
+      SUM(co2_saved) as co2Saved,
+      SUM(money_saved) as moneySaved,
+      SUM(calories) as calories,
+      COUNT(*) as tripCount
+    FROM trips WHERE user_id = ?
+  `).get(req.params.userId)
+
+  res.json({
+    co2Saved: (totals.co2Saved || 0).toFixed(2),
+    moneySaved: (totals.moneySaved || 0).toFixed(2),
+    calories: totals.calories || 0,
+    tripCount: totals.tripCount || 0,
+    plasticBottles: ((totals.co2Saved || 0) * 0.47).toFixed(1),
+    treesEquiv: ((totals.co2Saved || 0) / 21).toFixed(3),
+    xp: user.xp || 0
+  })
+})
+if (!userId) {
+  alert('No user found. Please create an account first.')
+  return
+}
 // ══ GROUPS ══
 app.get('/api/groups/:code', (req, res) => {
-  const g = groups[req.params.code.toUpperCase()]
-  if (!g) return res.status(404).json({ error: 'Group not found' })
-  res.json(g)
+  const g = db.prepare('SELECT * FROM groups_table WHERE code = ?').get(req.params.code.toUpperCase())
+if (!g) return res.status(404).json({ error:'Group not found' })
+const members = db.prepare('SELECT u.name, u.avatar, u.xp, COUNT(t.id) as trips FROM users u LEFT JOIN trips t ON t.user_id = u.id JOIN group_members gm ON gm.user_id = u.id WHERE gm.code = ? GROUP BY u.id ORDER BY u.xp DESC').all(req.params.code.toUpperCase())
+res.json({ ...g, members })
 })
 app.post('/api/groups/join', (req, res) => {
-  const g = groups[req.body.code?.toUpperCase()]
-  if (!g) return res.status(404).json({ error: 'Group not found' })
-  res.json({ success:true, group:g })
+  const g = db.prepare('SELECT * FROM groups_table WHERE code = ?').get(req.body.code?.toUpperCase())
+if (!g) return res.status(404).json({ error:'Group not found' })
+if (req.body.userId) db.prepare('INSERT OR IGNORE INTO group_members (code,user_id,joined_at) VALUES (?,?,?)').run(req.body.code.toUpperCase(), req.body.userId, new Date().toISOString())
+const members = db.prepare('SELECT u.name, u.avatar, u.xp, COUNT(t.id) as trips FROM users u LEFT JOIN trips t ON t.user_id = u.id JOIN group_members gm ON gm.user_id = u.id WHERE gm.code = ? GROUP BY u.id ORDER BY u.xp DESC').all(req.body.code.toUpperCase())
+res.json({ success:true, group:{ ...g, members } })
 })
 app.post('/api/groups/create', (req, res) => {
   const code = Math.random().toString(36).substring(2,6).toUpperCase()
-  groups[code] = { code, goal:50, progress:0, members:[] }
-  res.json({ code, group: groups[code] })
+db.prepare('INSERT INTO groups_table (code,goal,progress,created_at) VALUES (?,?,?,?)').run(code, 50, 0, new Date().toISOString())
+if (req.body.userId) db.prepare('INSERT OR IGNORE INTO group_members (code,user_id,joined_at) VALUES (?,?,?)').run(code, req.body.userId, new Date().toISOString())
+res.json({ code, group: db.prepare('SELECT * FROM groups_table WHERE code = ?').get(code) })
 })
 
 app.get('/', (req, res) => res.json({ status:'Core2G API 🌿' }))
