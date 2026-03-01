@@ -320,12 +320,27 @@ app.post('/api/trips', (req, res) => {
 })
 app.get('/api/trips/:userId', (req, res) => {
   const trips = db.prepare(`
-    SELECT * FROM trips 
-    WHERE user_id = ? 
+    SELECT * FROM trips
+    WHERE user_id = ?
     ORDER BY timestamp DESC
   `).all(req.params.userId)
 
-  res.json(trips)
+  // Map snake_case DB columns to camelCase for the frontend
+  const mapped = trips.map(t => ({
+    id:         t.id,
+    userId:     t.user_id,
+    mode:       t.mode,
+    from:       t.from_place,
+    to:         t.to_place,
+    distanceKm: t.distance_km,
+    co2Saved:   t.co2_saved,
+    moneySaved: t.money_saved,
+    calories:   t.calories,
+    xpEarned:   t.xp_earned,
+    timestamp:  t.timestamp,
+  }))
+
+  res.json(mapped)
 })
 app.get('/api/impact/:userId', (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?')

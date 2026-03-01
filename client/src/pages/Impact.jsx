@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { getLevel, getXPProgress, co2ToImpact, calcCost, calcCalories } from '../utils/impact'
+import { getLevel, getXPProgress } from '../utils/impact'
 import { getUserImpact, getUserTrips } from '../utils/api'
 
 const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun']
@@ -21,26 +21,31 @@ export default function Impact({ user, onNeedSignup }) {
     setTimeout(() => setXpWidth(progress), 400)
   }, [progress])
 
+  // Normalise a raw DB/API trip row to camelCase
+  const normaliseTrip = (t) => ({
+    id:         t.id,
+    mode:       t.mode,
+    from:       t.from        ?? t.from_place  ?? '',
+    to:         t.to          ?? t.to_place    ?? '',
+    distanceKm: t.distanceKm  ?? t.distance_km ?? 0,
+    co2Saved:   t.co2Saved    ?? t.co2_saved   ?? 0,
+    moneySaved: t.moneySaved  ?? t.money_saved ?? 0,
+    calories:   t.calories    ?? 0,
+    xpEarned:   t.xpEarned    ?? t.xp_earned   ?? 0,
+    timestamp:  t.timestamp   ?? new Date().toISOString(),
+  })
+
   // Load real impact data when user is set
   useEffect(() => {
     if (!user?.id) return
     setLoading(true)
-
-    // Show locally-cached trips instantly while API loads
-    try {
-      const local = JSON.parse(localStorage.getItem(`trips_${user.id}`)) || []
-      if (local.length > 0) setTrips(local)
-    } catch {}
-
     Promise.all([
       getUserImpact(user.id).catch(() => null),
       getUserTrips(user.id).catch(() => null),
     ]).then(([impactData, tripData]) => {
       if (impactData) setImpact(impactData)
       if (tripData && tripData.length > 0) {
-        // API is source of truth — overwrite local cache to prevent duplicates
-        setTrips(tripData)
-        try { localStorage.setItem(`trips_${user.id}`, JSON.stringify(tripData)) } catch {}
+        setTrips(tripData.map(normaliseTrip))
       }
     }).finally(() => setLoading(false))
   }, [user])
@@ -83,31 +88,18 @@ const streakCount = (() => {
   return count
 })()
 
-  // Compute stats from local trips (source of truth), fall back to API impact object
-  const computedFromTrips = trips.length > 0 ? (() => {
-    const totalCo2Saved = trips.reduce((sum, t) => sum + parseFloat(t.co2Saved || 0), 0)
-    const totalCalories = trips.reduce((sum, t) =>
-      sum + (t.calories != null ? t.calories : calcCalories(t.mode, parseFloat(t.distanceKm || 0))), 0)
-    const totalMoneySaved = trips.reduce((sum, t) => {
-      const taxiCost = parseFloat(calcCost('taxi', parseFloat(t.distanceKm || 0)))
-      const modeCost = parseFloat(calcCost(t.mode,  parseFloat(t.distanceKm || 0)))
-      return sum + Math.max(0, taxiCost - modeCost)
-    }, 0)
-    const { plasticBottles: pb, trees } = co2ToImpact(totalCo2Saved)
-    return {
-      co2Saved:      totalCo2Saved.toFixed(2),
-      moneySaved:    totalMoneySaved.toFixed(2),
-      calories:      Math.round(totalCalories),
-      plasticBottles: pb,
-      treesEquiv:    trees,
-    }
-  })() : null
+  // Sum stats directly from normalised trip values
+  const tripsTotal = trips.length > 0 ? {
+    co2Saved:   trips.reduce((s, t) => s + parseFloat(t.co2Saved  || 0), 0),
+    moneySaved: trips.reduce((s, t) => s + parseFloat(t.moneySaved || 0), 0),
+    calories:   trips.reduce((s, t) => s + (Number(t.calories) || 0), 0),
+  } : null
 
-  const co2Saved       = computedFromTrips?.co2Saved       ?? (impact ? parseFloat(impact.co2Saved).toFixed(2)   : '0')
-  const moneySaved     = computedFromTrips?.moneySaved      ?? (impact ? parseFloat(impact.moneySaved).toFixed(2) : '0')
-  const calories       = computedFromTrips?.calories        ?? (impact ? impact.calories                          : 0)
-  const plasticBottles = computedFromTrips?.plasticBottles  ?? (impact ? impact.plasticBottles                    : '0')
-  const treesEquiv     = computedFromTrips?.treesEquiv      ?? (impact ? impact.treesEquiv                        : '0')
+  const co2Saved       = tripsTotal ? tripsTotal.co2Saved.toFixed(2)              : (impact ? parseFloat(impact.co2Saved).toFixed(2)   : '0')
+  const moneySaved     = tripsTotal ? tripsTotal.moneySaved.toFixed(2)            : (impact ? parseFloat(impact.moneySaved).toFixed(2) : '0')
+  const calories       = tripsTotal ? Math.round(tripsTotal.calories)             : (impact ? impact.calories                          : 0)
+  const plasticBottles = tripsTotal ? (tripsTotal.co2Saved * 0.47).toFixed(1)     : (impact ? impact.plasticBottles                    : '0')
+  const treesEquiv     = tripsTotal ? (tripsTotal.co2Saved / 21).toFixed(3)       : (impact ? impact.treesEquiv                        : '0')
   const totalXP        = impact?.xp ?? xp
 
   // Earned badges based on real data
@@ -363,10 +355,10 @@ const streakDays = buildStreak()   // ← ADD THIS LINE
               <div key={t.id || i} className="history-row">
                 <div className="h-emoji">{MODE_EMOJI[t.mode] || '🚗'}</div>
                 <div className="h-info">
-                  <div className="h-route">{t.from} → {t.to}</div>
-                  <div className="h-sub">{dateStr} · {t.distanceKm}km · +{t.xpEarned} XP</div>
+                  <div className="h-route">{t.from || '?'} → {t.to || '?'}</div>
+                  <div className="h-sub">{dateStr} · {parseFloat(t.distanceKm || 0).toFixed(1)}km · +{t.xpEarned || 0} XP</div>
                 </div>
-                <div className="h-co2">−{parseFloat(t.co2Saved).toFixed(2)}kg CO₂</div>
+                <div className="h-co2">−{parseFloat(t.co2Saved || 0).toFixed(2)}kg CO₂</div>
               </div>
             )
           })
