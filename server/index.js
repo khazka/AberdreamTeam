@@ -71,7 +71,7 @@ async function getCO2(googleMode, distanceKm) {
   if (!activityId) return 0
 
   try {
-    const r = await fetch('https://beta3.api.climatiq.io/estimate', {
+    const r = await fetch('https://api.climatiq.io/estimate', {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${key}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({
