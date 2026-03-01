@@ -96,8 +96,8 @@ function getMockRoutes() {
     { mode:'bicycling', appMode:'cycle', durationMin:14, distanceKm:'2.10', co2Kg:'0.000', calories:198, cost:'0.00',  isSurge:false, surgeMultiplier:1, co2Saved:'0.359', moneySaved:'5.91', plasticBottles:'0.2', treesEquiv:'0.017', xpEarned:39 },
     { mode:'transit',   appMode:'bus',   durationMin:18, distanceKm:'2.10', co2Kg:'0.187', calories:12,  cost:'1.58',  isSurge:false, surgeMultiplier:1, co2Saved:'0.172', moneySaved:'4.33', plasticBottles:'0.1', treesEquiv:'0.008', xpEarned:22 },
     { mode:'driving',   appMode:'taxi',  durationMin:9,  distanceKm:'2.10', co2Kg:'0.359', calories:2,   cost:'11.20', isSurge:true,  surgeMultiplier:1.4, co2Saved:'0.000', moneySaved:'0.00', plasticBottles:'0.0', treesEquiv:'0.000', xpEarned:0 },
-    { mode: 'train', appMode: 'train', durationMin:12, distanceKm: '2.1', co2Kg: '0.006', calories: 8, cost:'3.5', isSurge:false, surgeMultiplier:1, co2Saved:'0.353', moneySaved:'2.41', plasticBottles:'0.2', treesEquiv:'0.017', xpEarned:28 },
-    { mode:'ev', appMode:'ev', durationMin:10, distanceKm:'2.10', co2Kg:'0.053', calories:2, cost:'1.20', isSurge:false, surgeMultiplier:1, co2Saved:'0.306', moneySaved:'1.91', plasticBottles:'0.1', treesEquiv:'0.014', xpEarned:22 },
+    { mode: 'train', appMode: 'train', durationMin:12, distanceKm: '2.1', co2Kg: '0.006', calories: 8, cost:'3.50', isSurge:false, surgeMultiplier:1, co2Saved:'0.353', moneySaved:'2.41', plasticBottles:'0.2', treesEquiv:'0.017', xpEarned:28, polyline:'oxrlIhgbP`@xAf@fBVdANv@Lv@Jz@Hz@F`AFfADjABpABxA@~A@bB?fB?jBAfBCdBEdBGbBIbBKbBM`BOzAQxAS~@'}  ,
+    { mode:'ev', appMode:'ev', durationMin:10, distanceKm:'2.10', co2Kg:'0.053', calories:2, cost:'1.20', isSurge:false, surgeMultiplier:1, co2Saved:'0.306', moneySaved:'1.91', plasticBottles:'0.1', treesEquiv:'0.014', xpEarned:22, polyline:'oxrlIhgbP`@xAf@fBVdANv@Lv@Jz@Hz@F`AFfADjABpABxA@~A@bB?fB?jBAfBCdBEdBGbBIbBKbBM`BOzAQxAS~@' },
 
   ]
 }
