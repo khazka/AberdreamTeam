@@ -9,7 +9,6 @@ app.use(express.json())
 
 const Database = require('better-sqlite3')
 const db = new Database('core2g.db')
-localStorage.clear()
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
@@ -58,16 +57,6 @@ if (!existing) {
   db.prepare('INSERT INTO groups_table (code, goal, progress, created_at) VALUES (?,?,?,?)').run('GR7X', 50, 34, new Date().toISOString())
 }
 
-groups['GR7X'] = {
-  code: 'GR7X', goal: 50, progress: 34,
-  members: [
-    { name: 'Jamie R.',  pts: 1240, trips: 24, av: '🧑' },
-    { name: 'Priya M.',  pts: 980,  trips: 19, av: '👩' },
-    { name: 'Alex T.',   pts: 720,  trips: 14, av: '🧔' },
-    { name: 'Chris W.',  pts: 560,  trips: 11, av: '👨' },
-    { name: 'Sofia L.',  pts: 430,  trips: 9,  av: '👩' },
-  ]
-}
 
 // ══ HELPERS ══
 function calcCalories(mode, distanceKm) {
@@ -291,7 +280,7 @@ app.get('/api/users/:id', (req, res) => {
 
   res.json(user)
 })
-console.log("Trip payload:", req.body)
+
 // ══ TRIPS ══
 app.post('/api/trips', (req, res) => {
   const { userId, mode, from, to, distanceKm, co2Saved, moneySaved, calories } = req.body
@@ -363,10 +352,7 @@ app.get('/api/impact/:userId', (req, res) => {
     xp: user.xp || 0
   })
 })
-if (!userId) {
-  alert('No user found. Please create an account first.')
-  return
-}
+
 // ══ GROUPS ══
 app.get('/api/groups/:code', (req, res) => {
   const g = db.prepare('SELECT * FROM groups_table WHERE code = ?').get(req.params.code.toUpperCase())

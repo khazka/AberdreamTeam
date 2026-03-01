@@ -172,6 +172,7 @@ if (streakCount < 30) lockedBadges.push(`⚡ 30-Day Habit (${streakCount}/30 day
     environment: { icon:'🌍', text:`Your choices removed ${plasticBottles} plastic bottles from the ocean` },
     future:      { icon:'👨‍👩‍👧', text:`You're building a greener world — ${co2Saved}kg CO₂ saved` },
   }[user.motivation] : null
+const streakDays = buildStreak()   // ← ADD THIS LINE
 
   return (
     <div className="page-content">

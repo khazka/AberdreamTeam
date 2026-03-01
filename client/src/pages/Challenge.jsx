@@ -42,9 +42,7 @@ export default function Challenge({ user, showToast }) {
       setJoining(false)
     }
   }
-<div style={{fontSize:'0.68rem', color:'var(--muted)', marginTop:'0.35rem'}}>
-  💡 Try demo group code: <strong style={{color:'var(--green)', letterSpacing:'0.1em'}}>GR7X</strong>
-</div>
+
   // Build leaderboard — inject current user at their position
   const buildLeaderboard = () => {
     const base = group?.members || [
