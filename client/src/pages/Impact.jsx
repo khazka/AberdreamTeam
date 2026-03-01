@@ -36,26 +36,41 @@ export default function Impact({ user, onNeedSignup }) {
 
   // Build 7-day streak from real trip timestamps
   const buildStreak = () => {
-    const today = new Date()
-    return DAYS.map((name, i) => {
-      const day = new Date(today)
-      day.setDate(today.getDate() - (6 - i))
-      const dayStr = day.toDateString()
-      const isToday = i === 6
-      const done = trips.some(t => new Date(t.timestamp).toDateString() === dayStr)
-      return { name: name, done, today: isToday && done, isToday }
+  const today = new Date()
+  today.setHours(0,0,0,0)
+  return Array.from({length:7}, (_,i) => {
+    const day = new Date(today)
+    day.setDate(today.getDate() - (6 - i))
+    const dayStr = day.toDateString()
+    const isToday = i === 6
+    const done = trips.some(t => {
+      const td = new Date(t.timestamp)
+      td.setHours(0,0,0,0)
+      return td.toDateString() === dayStr && t.mode !== 'taxi'
     })
-  }
+    return { name: ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'][day.getDay() === 0 ? 6 : day.getDay()-1], done, isToday }
+  })
+}
 
-  const streakDays = buildStreak()
-  const streakCount = (() => {
-    let count = 0
-    for (let i = streakDays.length - 1; i >= 0; i--) {
-      if (streakDays[i].done) count++
-      else break
-    }
-    return count
-  })()
+const streakCount = (() => {
+  const today = new Date()
+  today.setHours(0,0,0,0)
+  let count = 0
+  let checkDate = new Date(today)
+  while (true) {
+    const dateStr = checkDate.toDateString()
+    const hadGreenTrip = trips.some(t => {
+      const td = new Date(t.timestamp)
+      td.setHours(0,0,0,0)
+      return td.toDateString() === dateStr && t.mode !== 'taxi'
+    })
+    if (!hadGreenTrip) break
+    count++
+    checkDate.setDate(checkDate.getDate() - 1)
+    if (count > 365) break
+  }
+  return count
+})()
 
   // Use real impact data if available, else zeros
   const co2Saved      = impact ? parseFloat(impact.co2Saved).toFixed(2)      : '0'
@@ -73,11 +88,17 @@ export default function Impact({ user, onNeedSignup }) {
   if (parseFloat(plasticBottles) > 0)             earnedBadges.push('🌊 Ocean Saver')
   if (trips.length >= 10)                         earnedBadges.push('⭐ Dedicated Commuter')
   if (parseFloat(co2Saved) >= 5)                  earnedBadges.push('💚 5kg CO₂ Saved')
+  if (streakCount >= 2)  earnedBadges.push('🔥 2-Day Streak')
+if (streakCount >= 5)  earnedBadges.push('🔥 5-Day Streak') 
+if (streakCount >= 7)  earnedBadges.push('🏆 7-Day Low Carbon Commuter')
+if (streakCount >= 14) earnedBadges.push('⚡ 2-Week Habit')
+if (streakCount >= 30) earnedBadges.push('🌍 30-Day Green Habit')
 
   const lockedBadges = []
   if (lvlData.level < 5)   lockedBadges.push('🏆 Green Legend (Lv5)')
-  if (streakCount < 30)    lockedBadges.push('⚡ 30-Day Streak')
   if (trips.length < 50)   lockedBadges.push('🌍 50 Trips')
+  if (streakCount < 7)  lockedBadges.push(`🔥 7-Day Streak (${streakCount}/7 days)`)
+if (streakCount < 30) lockedBadges.push(`⚡ 30-Day Habit (${streakCount}/30 days)`)
 
   if (!user) {
     return (

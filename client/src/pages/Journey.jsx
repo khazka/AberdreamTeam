@@ -106,9 +106,10 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
   }
 
   useEffect(() => {
-    fetchWeather('Aberdeen')
-    fetchRoutes()
-  }, [])
+  getWeather(from.split(',')[0].trim() || 'Aberdeen')
+    .then(w => { setWeather(w); setTimeout(() => setRdsWidth(w.rainyDayScore), 400) })
+    .catch(() => setTimeout(() => setRdsWidth(78), 400))
+}, [])
 
   useEffect(() => {
   if (!navigator.geolocation) {
