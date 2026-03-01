@@ -17,6 +17,7 @@ export default function App() {
     try { return JSON.parse(localStorage.getItem('core2g_user')) } catch { return null }
   })
   const [toast, setToast]         = useState('')
+  const [showProfileMenu, setShowProfileMenu] = useState(false)
 
   // Apply theme to html element
   useEffect(() => {
@@ -63,6 +64,16 @@ const handleSignup = async (formData) => {
   }
 }
 
+  const handleLogout = () => {
+    setUser(null)
+    setShowProfileMenu(false)
+    localStorage.removeItem('core2g_user')
+    localStorage.removeItem('greenUserId')
+    localStorage.removeItem('greenUser')
+    setScreen('journey')
+    showToast('👋 Logged out successfully')
+  }
+
   // Called by Journey after a trip is logged — updates XP in state + localStorage
   const handleTripLogged = (xpEarned) => {
     if (!user) return
@@ -79,7 +90,10 @@ const handleSignup = async (formData) => {
         theme={theme}
         toggleTheme={toggleTheme}
         user={user}
-        onAvatarClick={() => setShowSignup(true)}
+        onAvatarClick={() => user ? setShowProfileMenu(p => !p) : setShowSignup(true)}
+        showProfileMenu={showProfileMenu}
+        onCloseProfileMenu={() => setShowProfileMenu(false)}
+        onLogout={handleLogout}
       />
       <main className="app-main">
         {screen === 'journey' && (
