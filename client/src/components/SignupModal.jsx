@@ -37,8 +37,19 @@ export default function SignupModal({ onClose, onSignup }) {
     }
   }
 
+  const ALLOWED_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'yahoo.co.uk', 'icloud.com']
+
   const nextStep = () => {
-    if (step === 1 && !name.trim()) { setError('Enter your name to continue'); return }
+    if (step === 1) {
+      if (!name.trim()) { setError('Enter your name to continue'); return }
+      if (email.trim()) {
+        const domain = email.trim().toLowerCase().split('@')[1]
+        if (!domain || !ALLOWED_DOMAINS.includes(domain)) {
+          setError('Please use a Gmail, Outlook, Yahoo, or iCloud email')
+          return
+        }
+      }
+    }
     setError('')
     setStep(s => s + 1)
   }
