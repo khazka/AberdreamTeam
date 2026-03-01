@@ -11,7 +11,7 @@ const GMAP_LIBS = ['places']
 ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip)
 
 const ABERDEEN_CENTER = { lat: 57.1497, lng: -2.0943 }
-const ROUTE_COLORS = { walk:'#16a34a', cycle:'#3b82f6', bus:'#8b5cf6', taxi:'#ef4444' }
+const ROUTE_COLORS = { walk:'#16a34a', cycle:'#3b82f6', bus:'#8b5cf6', taxi:'#ef4444', train:'#10b981', ev:'#6366f1' }
 
 function decodePolyline(encoded) {
   const points = []

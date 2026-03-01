@@ -217,15 +217,20 @@ body {
 .route-card::before {
   content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
 }
-.route-card.walk::before { background: var(--green); }
-.route-card.cycle::before { background: var(--blue); }
-.route-card.bus::before { background: var(--purple); }
-.route-card.taxi::before { background: var(--red); }
+.route-card.walk::before  { background: #16a34a; }
+.route-card.cycle::before { background: #3b82f6; }
+.route-card.bus::before   { background: #8b5cf6; }
+.route-card.taxi::before  { background: #ef4444; }
+.route-card.train::before { background: #10b981; }
+.route-card.ev::before    { background: #6366f1; }
 .route-card:hover { border-color: var(--muted); transform: translateX(2px); }
-.route-card.selected { border-color: var(--green); background: rgba(22,163,74,0.06); }
-.route-card.selected.cycle { border-color: var(--blue); background: rgba(59,130,246,0.06); }
-.route-card.selected.bus { border-color: var(--purple); background: rgba(139,92,246,0.06); }
-.route-card.selected.taxi { border-color: var(--red); background: rgba(239,68,68,0.06); }
+.route-card.selected              { border-color: #16a34a; background: rgba(22,163,74,0.06); }
+.route-card.selected.cycle        { border-color: #3b82f6; background: rgba(59,130,246,0.06); }
+.route-card.selected.bus          { border-color: #8b5cf6; background: rgba(139,92,246,0.06); }
+.route-card.selected.taxi         { border-color: #ef4444; background: rgba(239,68,68,0.06); }
+.route-card.selected.train        { border-color: #10b981; background: rgba(16,185,129,0.06); }
+.route-card.selected.ev           { border-color: #6366f1; background: rgba(99,102,241,0.06); }
+.badge-muted { background: var(--surface2); color: var(--muted); border: 1px solid var(--border); }
 .route-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 0.6rem; }
 .route-mode-row { display: flex; align-items: center; gap: 0.45rem; }
 .route-emoji { font-size: 1.1rem; }
