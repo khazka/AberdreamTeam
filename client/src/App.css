@@ -368,7 +368,7 @@ body {
 .h-co2 { font-weight: 700; font-size: 0.8rem; color: var(--green); }
 
 /* ══ CHALLENGE PAGE ══ */
-.challenge-inner { max-width: 680px; }
+.challenge-inner { max-width: 680px; width: 100%; margin: 0 auto; }
 .code-row { display: flex; gap: 0.75rem; margin-bottom: 1.25rem; }
 .your-code-card { flex: 1; background: rgba(22,163,74,0.08); border: 1.5px solid rgba(22,163,74,0.3); border-radius: 14px; padding: 1rem; text-align: center; }
 .yc-label { font-size: 0.67rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 0.25rem; }
