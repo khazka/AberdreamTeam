@@ -43,6 +43,8 @@ const MODE_CONFIG = {
   cycle: { emoji:'🚴', name:'Cycle',     badgeClass:'badge-blue'   },
   bus:   { emoji:'🚌', name:'Bus',       badgeClass:'badge-purple' },
   taxi:  { emoji:'🚕', name:'City Taxi', badgeClass:'badge-red'    },
+  train: { emoji:'🚆', name:'Train', badge:'🌱 Low Carbon', badgeClass:'badge-green' },
+ev:    { emoji:'⚡', name:'EV Car', badge:'🔋 Electric',   badgeClass:'badge-blue'  },
 }
 
 function LogTripModal({ route, onClose, onConfirm }) {
@@ -178,7 +180,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
 
   const buildChartData = () => {
     if (!routes.length) return { labels:[], datasets:[{ data:[] }] }
-    const order = ['walk','cycle','bus','taxi']
+    const order = ['walk','cycle','bus','taxi','ev','train']
     const ordered = order.map(m => routes.find(r => r.appMode === m)).filter(Boolean)
     const values = ordered.map(r => {
       if (persona === 'planet')  return Math.max(0, 100 - parseFloat(r.co2Kg) * 200)
@@ -189,7 +191,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
     return {
       labels: ordered.map(r => `${MODE_CONFIG[r.appMode]?.emoji} ${MODE_CONFIG[r.appMode]?.name}`),
       datasets: [{ data: values,
-        backgroundColor:['rgba(22,163,74,0.8)','rgba(59,130,246,0.8)','rgba(139,92,246,0.8)','rgba(239,68,68,0.35)'],
+        backgroundColor:['rgba(22,163,74,0.8)','rgba(59,130,246,0.8)','rgba(139,92,246,0.8)','rgba(239,68,68,0.35)', 'rgba(99,102,241,0.8)','rgba(16,185,129,0.8)'],
         borderRadius:6, borderSkipped:false }]
     }
   }
@@ -263,7 +265,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
           </div>
 
           <div className="mode-pills">
-            {[['walk','🚶 Walk'],['cycle','🚴 Cycle'],['bus','🚌 Bus'],['taxi','🚕 City Taxi']].map(([id,lbl]) => (
+            {[['walk','🚶 Walk'],['cycle','🚴 Cycle'],['bus','🚌 Bus'],['taxi','🚕 City Taxi'],['ev','⚡ EV'],['train', '🚆 Train']].map(([id,lbl]) => (
               <div key={id} className={`mode-pill${selected===id?' active':''}`}
                 onClick={() => setSelected(id)} style={{ cursor:'pointer' }}>{lbl}</div>
             ))}

@@ -49,6 +49,9 @@ function getMockRoutes() {
     { mode:'bicycling', appMode:'cycle', durationMin:14, distanceKm:'2.10', co2Kg:'0.000', calories:198, cost:'0.00',  isSurge:false, surgeMultiplier:1, co2Saved:'0.359', moneySaved:'5.91', plasticBottles:'0.2', treesEquiv:'0.017', xpEarned:39 },
     { mode:'transit',   appMode:'bus',   durationMin:18, distanceKm:'2.10', co2Kg:'0.187', calories:12,  cost:'1.58',  isSurge:false, surgeMultiplier:1, co2Saved:'0.172', moneySaved:'4.33', plasticBottles:'0.1', treesEquiv:'0.008', xpEarned:22 },
     { mode:'driving',   appMode:'taxi',  durationMin:9,  distanceKm:'2.10', co2Kg:'0.359', calories:2,   cost:'11.20', isSurge:true,  surgeMultiplier:1.4, co2Saved:'0.000', moneySaved:'0.00', plasticBottles:'0.0', treesEquiv:'0.000', xpEarned:0 },
+    { mode: 'train', appMode: 'train', durationMin:12, distanceKm: '2.1', co2Kg: '0.006', calories: 8, cost:'3.5', isSurge:false, surgeMultiplier:1, co2Saved:'0.353', moneySaved:'2.41', plasticBottles:'0.2', treesEquiv:'0.017', xpEarned:28 },
+    { mode:'ev', appMode:'ev', durationMin:10, distanceKm:'2.10', co2Kg:'0.053', calories:2, cost:'1.20', isSurge:false, surgeMultiplier:1, co2Saved:'0.306', moneySaved:'1.91', plasticBottles:'0.1', treesEquiv:'0.014', xpEarned:22 },
+
   ]
 }
 
@@ -61,6 +64,8 @@ async function getCO2(googleMode, distanceKm) {
   const ACTIVITY_IDS = {
     transit: 'passenger_vehicle-vehicle_type_local_bus-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na',
     driving: 'passenger_vehicle-vehicle_type_taxi-fuel_source_na-engine_size_na-vehicle_age_na-vehicle_weight_na',
+    train: 'passenger_train-route_type_national_rail-fuel_source_na',
+    ev: 'passenger_vehicle-vehicle_type_car-fuel_source_bev-engine_size_na-vehicle_age_na-vehicle_weight_na',
   }
   const activityId = ACTIVITY_IDS[googleMode]
   if (!activityId) return 0
@@ -91,7 +96,7 @@ app.get('/api/routes', async (req, res) => {
 
   try {
     const modeMap = { walking:'walk', bicycling:'cycle', transit:'bus', driving:'taxi' }
-    const modes   = Object.keys(modeMap)
+    const modes = ['walking', 'bicycling', 'transit', 'driving']
 
     const results = await Promise.all(modes.map(async (mode) => {
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${encodeURIComponent(from)}&destination=${encodeURIComponent(to)}&mode=${mode}&key=${key}&region=gb&units=metric`
@@ -115,6 +120,34 @@ app.get('/api/routes', async (req, res) => {
         distanceKm: distanceKm.toFixed(2), co2Kg: co2Kg.toFixed(3),
         calories, cost: finalCost, isSurge, surgeMultiplier: surge, polyline }
     }))
+
+    const drivingRoute = results.find(r => r && r.mode === 'driving')
+if (drivingRoute) {
+  const dist = parseFloat(drivingRoute.distanceKm)
+  const trainCO2 = await getCO2('train', dist)
+  const evCO2 = await getCO2('ev', dist)
+  results.push({
+    mode:'train', appMode:'train',
+    durationMin: Math.round(drivingRoute.durationMin * 1.3),
+    distanceKm: drivingRoute.distanceKm,
+    co2Kg: trainCO2.toFixed(3),
+    calories: calcCalories('transit', dist),
+    cost: (1.50 + dist * 0.22).toFixed(2),
+    isSurge: false, surgeMultiplier: 1,
+    polyline: drivingRoute.polyline
+  })
+  results.push({
+    mode:'ev', appMode:'ev',
+    durationMin: drivingRoute.durationMin,
+    distanceKm: drivingRoute.distanceKm,
+    co2Kg: evCO2.toFixed(3),
+    calories: 2,
+    cost: (0.50 + dist * 0.08).toFixed(2),
+    isSurge: false, surgeMultiplier: 1,
+    polyline: drivingRoute.polyline
+  })
+}
+
 
     const routes   = results.filter(Boolean)
     const taxiData = routes.find(r => r.mode === 'driving')
