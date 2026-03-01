@@ -345,8 +345,8 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
             <>
               <div className="summary-strip">
                 <div className="sum-chip"><div className="sum-val">{selectedRoute.co2Saved}kg</div><div className="sum-lbl">CO₂ saved vs taxi</div></div>
-                <div className="sum-chip"><div className="sum-val">£{selectedRoute.moneySaved}</div><div className="sum-lbl">Money saved</div></div>
-                <div className="sum-chip"><div className="sum-val">🌊 {selectedRoute.plasticBottles}</div><div className="sum-lbl">Plastic bottles equiv.</div></div>
+                <div className="sum-chip"><div className="sum-val">£{selectedRoute.moneySaved}</div><div className="sum-lbl">Money saved vs taxi</div></div>
+                <div className="sum-chip"><div className="sum-val">🌊 {selectedRoute.plasticBottles}</div><div className="sum-lbl"> Plastic bottle saved </div></div>
               </div>
               <button className="log-btn" onClick={() => setShowLog(true)}>
                 ✓ Log This Trip · +{selectedRoute.xpEarned} XP
@@ -355,7 +355,7 @@ export default function Journey({ user, showToast, onNeedSignup, onTripLogged })
           )}
 
           <div className="scoreboard-wrap">
-            <div className="section-label" style={{ marginBottom:'0.5rem' }}>📊 Impact Scoreboard</div>
+            <div className="section-label" style={{ marginBottom:'0.5rem' }}> Impact Scoreboard</div>
             <div className="persona-pills">
               {[['planet','🌍 Planet'],['fitness','💪 Fitness'],['budget','💰 Budget']].map(([id,lbl]) => (
                 <div key={id} className={`persona-pill ${persona===id?'active':''}`} onClick={() => setPersona(id)}>{lbl}</div>
