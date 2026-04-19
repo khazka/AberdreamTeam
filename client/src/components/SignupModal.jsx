@@ -15,13 +15,33 @@ const MOTIVATIONS = [
 ]
 
 export default function SignupModal({ onClose, onSignup }) {
-  const [step, setStep]           = useState(1)
-  const [name, setName]           = useState('')
-  const [email, setEmail]         = useState('')
-  const [avatar, setAvatar]       = useState('🌿')
-  const [persona, setPersona]     = useState('planet')
+  const [step, setStep]             = useState(1)
+  const [name, setName]             = useState('')
+  const [email, setEmail]           = useState('')
+  const [password, setPassword]     = useState('')
+  const [showPass, setShowPass]     = useState(false)
+  const [avatar, setAvatar]         = useState('🌿')
+  const [persona, setPersona]       = useState('planet')
   const [motivation, setMotivation] = useState('environment')
-  const [error, setError]         = useState('')
+  const [error, setError]           = useState('')
+
+  const ALLOWED_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'yahoo.co.uk', 'icloud.com']
+
+  const nextStep = () => {
+    if (step === 1) {
+      if (!name.trim()) { setError('Enter your name to continue'); return }
+      if (!password || password.length < 6) { setError('Password must be at least 6 characters'); return }
+      if (email.trim()) {
+        const domain = email.trim().toLowerCase().split('@')[1]
+        if (!domain || !ALLOWED_DOMAINS.includes(domain)) {
+          setError('Please use a Gmail, Outlook, Yahoo, or iCloud email')
+          return
+        }
+      }
+    }
+    setError('')
+    setStep(s => s + 1)
+  }
 
   const handleSignup = async () => {
     try {
@@ -35,23 +55,6 @@ export default function SignupModal({ onClose, onSignup }) {
       localStorage.setItem('greenUser', JSON.stringify(fallback))
       onSignup(fallback)
     }
-  }
-
-  const ALLOWED_DOMAINS = ['gmail.com', 'outlook.com', 'hotmail.com', 'yahoo.com', 'yahoo.co.uk', 'icloud.com']
-
-  const nextStep = () => {
-    if (step === 1) {
-      if (!name.trim()) { setError('Enter your name to continue'); return }
-      if (email.trim()) {
-        const domain = email.trim().toLowerCase().split('@')[1]
-        if (!domain || !ALLOWED_DOMAINS.includes(domain)) {
-          setError('Please use a Gmail, Outlook, Yahoo, or iCloud email')
-          return
-        }
-      }
-    }
-    setError('')
-    setStep(s => s + 1)
   }
 
   const TITLES = ['Your Details', 'Your Avatar', 'Your Why']
@@ -82,7 +85,7 @@ export default function SignupModal({ onClose, onSignup }) {
           ))}
         </div>
 
-        {/* STEP 1: Name & Email */}
+        {/* STEP 1: Name, Email & Password */}
         {step === 1 && (
           <>
             <p className="modal-sub">Let's get started — tell us a bit about yourself.</p>
@@ -94,12 +97,33 @@ export default function SignupModal({ onClose, onSignup }) {
             />
             <input
               className="modal-input"
-              placeholder="Email address"
+              placeholder="Your email"
               type="email"
               value={email}
               onChange={e => setEmail(e.target.value)}
             />
-            {error && <p style={{ color: 'var(--red)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>{error}</p>}
+            <div style={{ position:'relative', marginBottom:'0.75rem' }}>
+              <input
+                className="modal-input"
+                placeholder="Password"
+                type={showPass ? 'text' : 'password'}
+                value={password}
+                onChange={e => { setPassword(e.target.value); setError('') }}
+                style={{ paddingRight:'2.5rem', width:'100%', boxSizing:'border-box', marginBottom:0 }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowPass(s => !s)}
+                style={{
+                  position:'absolute', right:'0.75rem', top:'50%', transform:'translateY(-50%)',
+                  background:'none', border:'none', cursor:'pointer', padding:0,
+                  color:'var(--muted)', fontSize:'0.75rem', fontWeight:600, letterSpacing:'0.03em'
+                }}
+              >
+                {showPass ? 'Hide' : 'Show'}
+              </button>
+            </div>
+            {error && <p style={{ color:'var(--red)', fontSize:'0.8rem', marginBottom:'0.5rem' }}>{error}</p>}
             <button className="modal-btn" onClick={nextStep}>Next →</button>
           </>
         )}
